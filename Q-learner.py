@@ -9,7 +9,7 @@ import tensorflow.contrib.layers as layers
 
 
 class Config():
-    epsilon_train = 0.1
+    epsilon_train = 1
     gamma = 1.0
     lr = 0.001
     num_players_per_team = 2
@@ -150,8 +150,8 @@ class QN:
             state: observation from gym
         """
         best_actions = self.get_best_action(states)[0]
-        random_actions = np.random.randint(0, Config.num_actions, states.shape[0])
-        probs = np.random.random(states.shape[0])
+        random_actions = np.random.randint(0, Config.num_actions, len(states))
+        probs = np.random.random(len(states))
        	return np.where(probs < Config.epsilon_train, random_actions, best_actions)
 
     def get_state(self, agent, obs):
@@ -195,20 +195,20 @@ class QN:
         score_opp = 0
         i = 0
         while True:
-        	i += 1
-            smart_agents = []
+            i += 1
+            agents = []
             agent_obs = []
             for a in range(Config.num_players_per_team):
-                agent = AgentInterface(team_name='SMART', a)
+                agent = AgentInterface('SMART', a)
                 agent.set_home(3+a, 2)
-                smart_agents.append(agent)
+                agents.append(agent)
                 obs = agent.observe_from_server()
                 agent_obs.append(obs)
 
             states = np.zeros((Config.num_players_per_team, Config.state_size))
             for a in range(Config.num_players_per_team):
                 while ("start", 0) not in agent_obs[a]:
-                    agent_obs[a] = smart_agents[a].observe_from_server()
+                    agent_obs[a] = agents[a].observe_from_server()
                     states[a] = self.get_state(agents[a], agent_obs[a])
             new_states = np.zeros((Config.num_players_per_team, Config.state_size))
             while True:
@@ -220,16 +220,15 @@ class QN:
                             new_cycle = True
                             break
                     if new_cycle:
-                        action = self.get_action(state[a])[0]
+                        action = self.get_action([states[a]])[0]
                         if action <= 8:
-                            agent[a].send_action("move", action)
+                            agents[a].send_action("move", action)
                         else:
                             if action - 9 < a:
-                                agent[a].send_action("pass", action-9)
+                                agents[a].send_action("pass", action-9)
                             else:
-                                agent[a].send_action("pass", action-8)                                
+                                agents[a].send_action("pass", action-8)
                         new_states[a] = self.get_state(agents[a], agent_obs[a])
-                        agent_obs[a] = agents[a].observe_from_server()
                         score = None
                         for o in agent_obs[a]:
                             if o[0] == "score":
@@ -242,6 +241,8 @@ class QN:
                             reward = 1.
                         elif score[1] > score_opp:
                             reward = -1.
+                        score_team = score[0]
+                        score_opp = score[1]
                         loss, _ = self.sess.run([self.loss, self.train_op], feed_dict={self.s: [states[a]], self.r:  [reward], self.a: [action]})
                         states[a] = new_states[a]
                         print loss

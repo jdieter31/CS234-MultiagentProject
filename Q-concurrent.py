@@ -76,10 +76,11 @@ class QN:
     def add_optimizer_op(self, scope):
 
         optimizer = tf.train.AdamOptimizer(Config.lr)
-        grad_vars = optimizer.compute_gradients(self.loss)
+        grads_vars = optimizer.compute_gradients(self.loss)
         grads_vars = [(tf.clip_by_norm(grad, Config.clip_val), var) for grad, var in grads_vars]
         # self.train_op = optimizer.minimize(self.loss)
         self.train_op = optimizer.apply_gradients(grads_vars)
+        self.grad_norm = tf.global_norm([grad for grad, var in grads_vars])
         
         ##############################################################
         ######################## END YOUR CODE #######################
@@ -251,7 +252,8 @@ class QN:
                         reward = -0.2
                     score_team = score[0]
                     score_opp = score[1]
-                    loss, _ = self.sess.run([self.loss, self.train_op], feed_dict={self.s: [state], self.r:  [reward], self.a: [action]})
+                    loss, _, grad_norm = self.sess.run([self.loss, self.train_op, self.grad_norm], feed_dict={self.s: [state], self.r:  [reward], self.a: [action]})
+                    print grad_norm
                     state = new_state
 
 

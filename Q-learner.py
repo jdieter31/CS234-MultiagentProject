@@ -9,8 +9,8 @@ import tensorflow.contrib.layers as layers
 
 
 class Config():
-    epsilon_train = 1
-    gamma = 1.0
+    epsilon_train = .15
+    gamma = 0.8
     lr = 0.001
     num_players_per_team = 2
     num_actions = 9 + num_players_per_team - 1
@@ -245,7 +245,6 @@ class QN:
                         score_opp = score[1]
                         loss, _ = self.sess.run([self.loss, self.train_op], feed_dict={self.s: [states[a]], self.r:  [reward], self.a: [action]})
                         states[a] = new_states[a]
-                        print loss
 
 
 

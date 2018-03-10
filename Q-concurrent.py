@@ -10,12 +10,14 @@ import tensorflow.contrib.layers as layers
 player = sys.argv[1]
 
 class Config():
-    epsilon_train = .15
-    gamma = 0.8
+    epsilon_train = .1
+    gamma = 0.9
     lr = 0.001
     num_players_per_team = 2
     num_actions = 9 + num_players_per_team - 1
     state_size = 2*(2*num_players_per_team + 1)
+    clip_val = 5.0
+
 
 class QN:
     """
@@ -74,7 +76,10 @@ class QN:
     def add_optimizer_op(self, scope):
 
         optimizer = tf.train.AdamOptimizer(Config.lr)
-        self.train_op = optimizer.minimize(self.loss)
+        grad_vars = optimizer.compute_gradients(self.loss)
+        grads_vars = [(tf.clip_by_norm(grad, Config.clip_val), var) for grad, var in grads_vars]
+        # self.train_op = optimizer.minimize(self.loss)
+        self.train_op = optimizer.apply_gradients(grads_vars)
         
         ##############################################################
         ######################## END YOUR CODE #######################
@@ -201,7 +206,7 @@ class QN:
             # agent_obs = []
             # for a in range(Config.num_players_per_team):
             agent = AgentInterface('SMART', player)
-            agent.set_home(3+player, 2)
+            agent.set_home(3+player, 2) 
             # agents.append(agent)
             obs = agent.observe_from_server()
             # agent_obs.append(obs)
@@ -243,7 +248,7 @@ class QN:
                     elif score[1] > score_opp:
                         reward = -1.
                     else:
-                        reward = -0.1
+                        reward = -0.2
                     score_team = score[0]
                     score_opp = score[1]
                     loss, _ = self.sess.run([self.loss, self.train_op], feed_dict={self.s: [state], self.r:  [reward], self.a: [action]})

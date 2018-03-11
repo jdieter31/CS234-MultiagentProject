@@ -200,10 +200,10 @@ def train():
                                 else:
                                     score = [o[1][1], o[1][0]]
                         score_team_new, score_opp_new = score[0], score[1]
-                        reward_prev = reward(state_prev, state_new, action_prev[a], score_team_prev, score_opp_prev, score_team_new, score_opp_new)
+                        reward_prev = reward(state_prev[a], state_new, action_prev[a], score_team_prev, score_opp_prev, score_team_new, score_opp_new)
                         score_team_prev = score_team_new
                         score_opp_prev = score_opp_new
-                        update_Q(state_prev, action_prev[a], reward_prev, state_new)
+                        update_Q(state_prev[a], action_prev[a], reward_prev, state_new)
                     action_new = get_action(state_new)
                     if action_new <= 8:
                         agent.send_action("move", action_new)

@@ -107,18 +107,18 @@ def update_Q(state, actions, reward, new_state):
     Q_table[state[0], state[1], state[2], state[3], state[4], state[5], state[6], state[7], state[8], actions[0], actions[1]] = Q_new
 
 
-def reward(state_prev, state_new, action_prev, score_team_prev, score_opp_prev, score_team_new, score_opp_new):
-    preAmIBallOwner = state_prev[-1] == 0
+def reward(state_prev, state_new, actions_prev, score_team_prev, score_opp_prev, score_team_new, score_opp_new):
+    # preAmIBallOwner = state_prev[-1] == 0
     preAreWeBallOwner = state_prev[-1] < Config.num_players_per_team
-    curAmIBallOwner = state_new[-1] == 0
+    # curAmIBallOwner = state_new[-1] == 0
     curAreWeBallOwner = state_new[-1] < Config.num_players_per_team
     isCollaborative = Config.collaborative_rewards
 
     # if we scored a goal
     if score_team_new > score_team_prev:
-        if preAmIBallOwner:
-            return Config.RewardSelfScoreGoal
-        elif preAreWeBallOwner:
+        # if preAmIBallOwner:
+        #     return Config.RewardSelfScoreGoal
+        if preAreWeBallOwner:
             if isCollaborative:
                 return Config.RewardTeamScoreGoal
         else:
@@ -126,32 +126,33 @@ def reward(state_prev, state_new, action_prev, score_team_prev, score_opp_prev, 
 
     # if we received a goal
     if score_opp_new > score_opp_prev:
-        if preAmIBallOwner:
-            return Config.RewardSelfOwnGoal
-        elif preAreWeBallOwner:
+        # if preAmIBallOwner:
+        #     return Config.RewardSelfOwnGoal
+        if preAreWeBallOwner:
             return Config.RewardTeamOwnGoal
         else:
             return Config.RewardTeamRecvGoal
 
-    if curAmIBallOwner and (not preAreWeBallOwner):
-        return Config.RewardSelfCatchBall
+    # if curAmIBallOwner and (not preAreWeBallOwner):
+    #     return Config.RewardSelfCatchBall
     if curAreWeBallOwner and (not preAreWeBallOwner) and isCollaborative:
         return Config.RewardTeamCatchBall
-    if (not curAreWeBallOwner) and preAmIBallOwner:
-        return Config.RewardSelfLooseBall
+    # if (not curAreWeBallOwner) and preAmIBallOwner:
+    #     return Config.RewardSelfLooseBall
     if (not curAreWeBallOwner) and preAreWeBallOwner and isCollaborative:
         return Config.RewardTeamLooseBall
 
-    if action_prev == 9 and preAmIBallOwner and (not curAmIBallOwner) and curAreWeBallOwner:
-        return Config.RewardSuccessfulPass
-
-    if action_prev == 0:
-        return Config.RewardHold
-
-    if action_prev != 0 and action_prev != 9 and state_prev[0] == state_new[0] and state_prev[1] == state_new[1]:
-        return Config.RewardIllegalMovment
-
-    return Config.RewardEveryMovment
+    r = 0.
+    for a in range(Config.num_players_per_team):
+        if actions_prev[a] == 9 and (state_prev[-1] == a) and (state_new[-1] != a) and curAreWeBallOwner:
+            r += Config.RewardSuccessfulPass
+        elif actions_prev[a] == 0:
+            r += Config.RewardHold
+        elif actions_prev[a] != 0 and actions_prev[a] != 9 and state_prev[2*a] == state_new[2*a] and state_prev[2*a+1] == state_new[2*a+1]:
+            r += Config.RewardIllegalMovment
+        else: 
+            r += Config.RewardEveryMovment
+    return r / 2.
     
  
 def train():
@@ -165,8 +166,8 @@ def train():
     """
 
     # initialize replay buffer and variables
-    score_team_prev = [0 for a in range(Config.num_players_per_team)]
-    score_opp_prev = [0 for a in range(Config.num_players_per_team)]
+    score_team_prev = 0
+    score_opp_prev = 0
     i = 0
     while True:
         i += 1
@@ -179,7 +180,7 @@ def train():
             obs = agent.observe_from_server()
             agent_obs.append(obs)
 
-        state_prev = [None for a in range(Config.num_players_per_team)]
+        state_prev = None
         action_prev = [None for a in range(Config.num_players_per_team)]
         for a in range(Config.num_players_per_team):
             while ("start", 0) not in agent_obs[a]:
@@ -195,9 +196,7 @@ def train():
                         new_cycle = True
                         break
                 if new_cycle:
-                    state_new = [None for ag in range(Config.num_players_per_team)]
-                    for ag in range(Config.num_players_per_team):
-                        state_new[ag] = get_state(agents[ag], agent_obs[ag])
+                    state_new = get_state(agent, obs)
                     if a == 0 and action_prev[a] is not None:
                         score = None
                         for o in obs:
@@ -207,20 +206,27 @@ def train():
                                 else:
                                     score = [o[1][1], o[1][0]]
                         score_team_new, score_opp_new = score[0], score[1]
-                        reward_prev = 0.
-                        for ag in range(Config.num_players_per_team):                            
-                            reward_prev += reward(state_prev[ag], state_new[ag], action_prev[ag], score_team_prev[ag], score_opp_prev[ag], score_team_new, score_opp_new)
-                            score_team_prev[ag] = score_team_new
-                            score_opp_prev[ag] = score_opp_new
-                        update_Q(state_prev[a], action_prev, reward_prev, state_new[a])
-                    action_new = get_actions(state_new[0])[a]
-                    if action_new <= 8:
-                        agent.send_action("move", action_new)
+                        reward_prev = reward(state_prev, state_new, action_prev, score_team_prev, score_opp_prev, score_team_new, score_opp_new)
+                        score_team_prev = score_team_new
+                        score_opp_prev = score_opp_new
+                        update_Q(state_prev, action_prev, reward_prev, state_new)
+                    if a == 0:
+                        actions_new = get_actions(state_new)
+                        if actions_new[a] <= 8:
+                            agent.send_action("move", actions_new[a])
+                        else:
+                            teammate = 1-a
+                            agent.send_action("pass", teammate)
+                        state_prev = state_new.copy()
+                        action_prev = actions_new.copy()
                     else:
-                        teammate = 1-a
-                        agent.send_action("pass", teammate)
-                    state_prev[a] = state_new[a].copy()
-                    action_prev[a] = action_new
+                        action_new = action_prev[a]
+                        if action_new <= 8:
+                            agent.send_action("move", action_new)
+                        else:
+                            teammate = 1-a
+                            agent.send_action("pass", teammate)
+
         
 
     

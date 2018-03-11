@@ -9,7 +9,7 @@ import tensorflow.contrib.layers as layers
 import sys
 
 
-player = int(sys.argv[1])
+# player = int(sys.argv[1])
 
 
 class Config():
@@ -165,52 +165,53 @@ def train():
     i = 0
     while True:
         i += 1
-        # agents = []
-        # agent_obs = []
-        # for a in range(Config.num_players_per_team):
-        agent = AgentInterface('SMART', player)
-        agent.set_home(3*player-1, 3) 
-        # agents.append(agent)
-        obs = agent.observe_from_server()
-        # agent_obs.append(obs)
+        agents = []
+        agent_obs = []
+        for a in range(Config.num_players_per_team):
+            agent = AgentInterface('SMART', a)
+            agent.set_home(3*a-1, 3) 
+            agents.append(agent)
+            obs = agent.observe_from_server()
+            agent_obs.append(obs)
 
-        state_prev = None
-        action_prev = None
-        # for a in range(Config.num_players_per_team):
-        while ("start", 0) not in obs:
-            obs = agent.observe_from_server()
+        states_prev = [None, None]
+        actions_prev = [None, None]
+        for a in range(Config.num_players_per_team):
+            while ("start", 0) not in agent_obs[a]:
+                agent_obs[a] = agents[a].observe_from_server()
         while True:
-            # for a in range(Config.num_players_per_team):
-            obs = agent.observe_from_server()
-            new_cycle = False
-            for o in obs:
-                if o[0] == "cycle":
-                    new_cycle = True
-                    break
-            if new_cycle:
-                state_new = get_state(agent, obs)
-                if action_prev is not None:
-                    score = None
-                    for o in obs:
-                        if o[0] == "score":
-                            if agent.left_team:
-                                score = [o[1][0], o[1][1]]
-                            else:
-                                score = [o[1][1], o[1][0]]
-                    score_team_new, score_opp_new = score[0], score[1]
-                    reward_prev = reward(state_prev, state_new, action_prev, score_team_prev, score_opp_prev, score_team_new, score_opp_new)
-                    print(reward_prev)
-                    score_team_prev = score_team_new
-                    score_opp_prev = score_opp_new
-                    update_Q(state_prev, action_prev, reward_prev, state_new)
-                action_new = get_action(state_new)
-                if action_new <= 8:
-                    agent.send_action("move", action_new)
-                else:
-                    teammate = 2 if player == 1 else 1
-                    agent.send_action("pass", teammate)
-                state_prev = state_new.copy()
-                action_prev = action_new                
+            for a in range(Config.num_players_per_team):
+                agent = agents[a]
+                agent_obs[a] = agent.observe_from_server()
+                obs = agent_obs[a]
+                new_cycle = False
+                for o in obs:
+                    if o[0] == "cycle":
+                        new_cycle = True
+                        break
+                if new_cycle:
+                    state_new = get_state(agent, obs)
+                    if action_prev[a] is not None:
+                        score = None
+                        for o in obs:
+                            if o[0] == "score":
+                                if agent.left_team:
+                                    score = [o[1][0], o[1][1]]
+                                else:
+                                    score = [o[1][1], o[1][0]]
+                        score_team_new, score_opp_new = score[0], score[1]
+                        reward_prev = reward(state_prev, state_new, action_prev[a], score_team_prev, score_opp_prev, score_team_new, score_opp_new)
+                        score_team_prev = score_team_new
+                        score_opp_prev = score_opp_new
+                        update_Q(state_prev, action_prev[a], reward_prev, state_new)
+                    action_new = get_action(state_new)
+                    if action_new <= 8:
+                        agent.send_action("move", action_new)
+                    else:
+                        teammate = 2 if player == 1 else 1
+                        agent.send_action("pass", teammate)
+                    state_prev[a] = state_new.copy()
+                    action_prev[a] = action_new                
         
 
     

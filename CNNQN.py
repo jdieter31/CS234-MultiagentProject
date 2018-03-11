@@ -19,8 +19,8 @@ class Config():
     rows = 8
     columns = 6
     epsilon_train = .15
-    gamma = 0.8
-    lr = 0.01
+    gamma = 0.9
+    lr = 0.001
     num_players_per_team = 2
     num_actions = 9 + num_players_per_team - 1
     state_size = 4
@@ -35,11 +35,11 @@ class Config():
     RewardTeamLooseBall = -10.
     RewardSelfCatchBall = 10.
     RewardSelfLooseBall = -10.
-    RewardTeamScoreGoal = 10.
-    RewardSelfScoreGoal = 10.
-    RewardTeamRecvGoal = -10.
-    RewardTeamOwnGoal = -15.
-    RewardSelfOwnGoal = -20.
+    RewardTeamScoreGoal = 50.
+    RewardSelfScoreGoal = 100.
+    RewardTeamRecvGoal = -100.
+    RewardTeamOwnGoal = -50.
+    RewardSelfOwnGoal = -100.
     RewardOpponentOwnGoal = 1.
     collaborative_rewards = True
 
@@ -141,7 +141,8 @@ class QN:
     def add_optimizer_op(self, scope):
 
         optimizer = tf.train.AdamOptimizer(Config.lr)
-        self.train_op = optimizer.minimize(self.loss)
+        q_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=scope)
+        self.train_op = optimizer.minimize(self.loss, var_list=q_vars)
 
         ##############################################################
         ######################## END YOUR CODE #######################
@@ -411,6 +412,7 @@ class QN:
                                     score = [o[1][1], o[1][0]]
                         score_team_new, score_opp_new = score[0], score[1]
                         reward_prev = self.reward(state_prev, state_new, action_prev, score_team_prev, score_opp_prev, score_team_new, score_opp_new)
+                        print(reward_prev)
                         score_team_prev = score_team_new
                         score_opp_prev = score_opp_new
                         loss, _ = self.sess.run([self.loss, self.train_op],

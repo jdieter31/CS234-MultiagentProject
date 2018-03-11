@@ -25,7 +25,23 @@ class Config():
     num_actions = 9 + num_players_per_team - 1
     state_size = 4
     target_update_freq = 20
-
+    num_rows = 6
+    num_cols = 8
+    RewardEveryMovment = -2.
+    RewardSuccessfulPass = -1.
+    RewardHold = -1.
+    RewardIllegalMovment = -3.
+    RewardTeamCatchBall = 10.
+    RewardTeamLooseBall = -10.
+    RewardSelfCatchBall = 10.
+    RewardSelfLooseBall = -10.
+    RewardTeamScoreGoal = 10.
+    RewardSelfScoreGoal = 10.
+    RewardTeamRecvGoal = -10.
+    RewardTeamOwnGoal = -15.
+    RewardSelfOwnGoal = -20.
+    RewardOpponentOwnGoal = 1.
+    collaborative_rewards = True
 
 # In[3]:
 
@@ -355,8 +371,8 @@ class QN:
         """
 
         # initialize replay buffer and variables
-        score_team = 0
-        score_opp = 0
+        score_team_prev = 0
+        score_opp_prev = 0
         i = 0
         while True:
             i += 1
@@ -393,15 +409,10 @@ class QN:
                                     score = [o[1][0], o[1][1]]
                                 else:
                                     score = [o[1][1], o[1][0]]
-                        reward_prev = 0.
-                        if score[0] > score_team:
-                            reward_prev = 1.
-                        elif score[1] > score_opp:
-                            reward_prev = -1.
-                        else:
-                            reward_prev = -0.1
-                        score_team = score[0]
-                        score_opp = score[1]
+                        score_team_new, score_opp_new = score[0], score[1]
+                        reward_prev = self.reward(state_prev, state_new, action_prev, score_team_prev, score_opp_prev, score_team_new, score_opp_new)
+                        score_team_prev = score_team_new
+                        score_opp_prev = score_opp_new
                         loss, _ = self.sess.run([self.loss, self.train_op],
                                                 feed_dict={
                                                     self.s: [state_prev],
@@ -422,6 +433,51 @@ class QN:
                     state_prev = state_new.copy()
                     action_prev = action_new
 
+    def reward(state_prev, state_new, action_prev, score_team_prev, score_opp_prev, score_team_new, score_opp_new):
+        preAmIBallOwner = state_prev[-1] == 0
+        preAreWeBallOwner = state_prev[-1] < Config.num_players_per_team
+        curAmIBallOwner = state_new[-1] == 0
+        curAreWeBallOwner = state_new[-1] < Config.num_players_per_team
+        isCollaborative = Config.collaborative_rewards
+
+        # if we scored a goal
+        if score_team_new > score_team_prev:
+            if preAmIBallOwner:
+                return Config.RewardSelfScoreGoal
+            elif preAreWeBallOwner:
+                if isCollaborative:
+                    return Config.RewardTeamScoreGoal
+            else:
+                return Config.RewardOpponentOwnGoal
+
+        # if we received a goal
+        if score_opp_new > score_opp_prev:
+            if preAmIBallOwner:
+                return Config.RewardSelfOwnGoal
+            elif preAreWeBallOwner:
+                return Config.RewardTeamOwnGoal
+            else:
+                return Config.RewardTeamRecvGoal
+
+        if curAmIBallOwner and (not preAreWeBallOwner):
+            return Config.RewardSelfCatchBall
+        if curAreWeBallOwner and (not preAreWeBallOwner) and isCollaborative:
+            return Config.RewardTeamCatchBall
+        if (not curAreWeBallOwner) and preAmIBallOwner:
+            return Config.RewardSelfLooseBall
+        if (not curAreWeBallOwner) and preAreWeBallOwner and isCollaborative:
+            return Config.RewardTeamLooseBall
+
+        if action_prev == 9 and preAmIBallOwner and (not curAmIBallOwner) and curAreWeBallOwner:
+            return Config.RewardSuccessfulPass
+
+        if action_prev == 0:
+            return Config.RewardHold
+
+        if action_prev != 0 and action_prev != 9 and state_prev[0] == state_new[0] and state_prev[1] == state_new[1]:
+            return Config.RewardIllegalMovment
+
+        return Config.RewardEveryMovment
 
     def update_target_params(self):
         """

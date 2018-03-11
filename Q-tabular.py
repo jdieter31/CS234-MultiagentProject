@@ -199,6 +199,7 @@ def train():
                                 score = [o[1][1], o[1][0]]
                     score_team_new, score_opp_new = score[0], score[1]
                     reward_prev = reward(state_prev, state_new, action_prev, score_team_prev, score_opp_prev, score_team_new, score_opp_new)
+                    print(reward_prev)
                     score_team_prev = score_team_new
                     score_opp_prev = score_opp_new
                     update_Q(state_prev, action_prev, reward_prev, state_new)

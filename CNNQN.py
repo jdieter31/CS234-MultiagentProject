@@ -23,7 +23,7 @@ class Config():
     lr = 0.001
     num_players_per_team = 2
     num_actions = 9 + num_players_per_team - 1
-    state_size = 2*(2*num_players_per_team + 1)
+    state_size = 4
     target_update_freq = 20
 
 
@@ -195,7 +195,7 @@ class QN:
         Returns:
             tuple: action, q values
         """
-        action_values = self.sess.run(self.q, feed_dict={self.s: state})
+        action_values = self.sess.run(self.q, feed_dict={self.s: [state]})
         return np.argmax(action_values, axis=1), action_values
 
 
@@ -413,7 +413,7 @@ class QN:
                         if t % Config.target_update_freq == 0:
                             self.update_target_params()
                         t += 1
-                    action_new = self.get_action(state_new)
+                    action_new = self.get_action(state_new)[0]
                     if action_new <= 8:
                         agent.send_action("move", action_new)
                     else:

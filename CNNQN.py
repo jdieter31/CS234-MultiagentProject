@@ -20,7 +20,7 @@ class Config():
     columns = 6
     epsilon_train = .15
     gamma = 0.8
-    lr = 0.001
+    lr = 0.01
     num_players_per_team = 2
     num_actions = 9 + num_players_per_team - 1
     state_size = 4
@@ -433,11 +433,11 @@ class QN:
                     state_prev = state_new.copy()
                     action_prev = action_new
 
-    def reward(state_prev, state_new, action_prev, score_team_prev, score_opp_prev, score_team_new, score_opp_new):
-        preAmIBallOwner = state_prev[-1] == 0
-        preAreWeBallOwner = state_prev[-1] < Config.num_players_per_team
-        curAmIBallOwner = state_new[-1] == 0
-        curAreWeBallOwner = state_new[-1] < Config.num_players_per_team
+    def reward(self, state_prev, state_new, action_prev, score_team_prev, score_opp_prev, score_team_new, score_opp_new):
+        preAmIBallOwner = np.sum(state_prev[:, :, 0]*state_prev[:, :, 3]) != 0
+        preAreWeBallOwner = preAmIBallOwner or np.sum(state_prev[:, :, 1]*state_prev[:, :, 3]) != 0
+        curAmIBallOwner = np.sum(state_new[:, :, 0]*state_new[:, :, 3]) != 0
+        curAreWeBallOwner = curAmIBallOwner or np.sum(state_new[:, :, 1]*state_new[:, :, 3]) != 0
         isCollaborative = Config.collaborative_rewards
 
         # if we scored a goal
@@ -474,7 +474,7 @@ class QN:
         if action_prev == 0:
             return Config.RewardHold
 
-        if action_prev != 0 and action_prev != 9 and state_prev[0] == state_new[0] and state_prev[1] == state_new[1]:
+        if action_prev != 0 and action_prev != 9 and np.sum(state_prev[:,:,0]*state_new[:,:,0]) != 0:
             return Config.RewardIllegalMovment
 
         return Config.RewardEveryMovment

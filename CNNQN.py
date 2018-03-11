@@ -19,7 +19,7 @@ class Config():
     rows = 8
     columns = 6
     epsilon_train = .15
-    gamma = 0.8
+    gamma = 0.9
     lr = 0.001
     num_players_per_team = 2
     num_actions = 9 + num_players_per_team - 1

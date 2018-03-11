@@ -15,7 +15,7 @@ player = int(sys.argv[1])
 class Config():
     epsilon_train = .1
     gamma = 0.9
-    lr = 0.001
+    lr = 0.1
     num_players_per_team = 2
     num_actions = 9 + num_players_per_team - 1
     state_size = 2*(2*num_players_per_team) + 1
@@ -128,16 +128,16 @@ def reward(state_prev, state_new, action_prev, score_team_prev, score_opp_prev, 
         else:
             return Config.RewardTeamRecvGoal
 
-    if curAmIBallOwner and not preAreWeBallOwner:
+    if curAmIBallOwner and (not preAreWeBallOwner):
         return Config.RewardSelfCatchBall
-    if curAreWeBallOwner and not preAreWeBallOwner and isCollaborative:
+    if curAreWeBallOwner and (not preAreWeBallOwner) and isCollaborative:
         return Config.RewardTeamCatchBall
-    if not curAreWeBallOwner and preAmIBallOwner:
+    if (not curAreWeBallOwner) and preAmIBallOwner:
         return Config.RewardSelfLooseBall
-    if not curAreWeBallOwner and preAreWeBallOwner and isCollaborative:
+    if (not curAreWeBallOwner) and preAreWeBallOwner and isCollaborative:
         return Config.RewardTeamLooseBall
 
-    if action_prev == 9 and preAmIBallOwner and not curAmIBallOwner and curAreWeBallOwner:
+    if action_prev == 9 and preAmIBallOwner and (not curAmIBallOwner) and curAreWeBallOwner:
         return Config.RewardSuccessfulPass
 
     if action_prev == 0:

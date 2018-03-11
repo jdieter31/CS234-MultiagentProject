@@ -169,13 +169,13 @@ def train():
         agent_obs = []
         for a in range(Config.num_players_per_team):
             agent = AgentInterface('SMART', a)
-            agent.set_home(3*a-1, 3) 
+            agent.set_home(3*a+2, 3) 
             agents.append(agent)
             obs = agent.observe_from_server()
             agent_obs.append(obs)
 
-        states_prev = [None, None]
-        actions_prev = [None, None]
+        state_prev = [None, None]
+        action_prev = [None, None]
         for a in range(Config.num_players_per_team):
             while ("start", 0) not in agent_obs[a]:
                 agent_obs[a] = agents[a].observe_from_server()
@@ -208,7 +208,7 @@ def train():
                     if action_new <= 8:
                         agent.send_action("move", action_new)
                     else:
-                        teammate = 2 if player == 1 else 1
+                        teammate = 1-a
                         agent.send_action("pass", teammate)
                     state_prev[a] = state_new.copy()
                     action_prev[a] = action_new                

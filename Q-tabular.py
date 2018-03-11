@@ -8,7 +8,7 @@ import tensorflow as tf
 import tensorflow.contrib.layers as layers
 
 
-player = sys.argv[1]
+player = int(sys.argv[1])
 
 
 class Config():
@@ -59,19 +59,19 @@ def get_state(agent, obs):
     ball_loc = None
     for o in obs:
         if o[0] == "loc":
-            state[0] = o[1][0]
-            state[1] = o[1][1]
+            state[0] = o[1][0] - 1
+            state[1] = o[1][1] - 1
         elif o[0] == "player" and agent.uni_number != o[1][1]:
             if agent.left_team == o[1][0]:
-                state[team_players_start_index] = o[1][2]
-                state[team_players_start_index+1] = o[1][3]
+                state[team_players_start_index] = o[1][2] - 1
+                state[team_players_start_index+1] = o[1][3] - 1
                 team_players_start_index += 2
             else:
-                state[opp_players_start_index] = o[1][2]
-                state[opp_players_start_index+1] = o[1][3]
+                state[opp_players_start_index] = o[1][2] - 1
+                state[opp_players_start_index+1] = o[1][3] - 1
                 opp_players_start_index += 2
         elif o[0] == "ball":
-            ball_loc = [o[1][0], o[1][1]]
+            ball_loc = [o[1][0] - 1, o[1][1] - 1]
     for i in range(2*Config.num_players_per_team):
         if ball_loc[0] == state[2*i] and ball_loc[1] == state[2*i + 1]:
             state[-1] = i
@@ -116,7 +116,6 @@ def train():
         # for a in range(Config.num_players_per_team):
         while ("start", 0) not in obs:
             obs = agent.observe_from_server()
-            state_prev = get_state(agent, obs)
         while True:
             # for a in range(Config.num_players_per_team):
             obs = agent.observe_from_server()

@@ -6,13 +6,14 @@ from AgentInterface import *
 from collections import defaultdict
 import tensorflow as tf
 import tensorflow.contrib.layers as layers
+import sys
 
-player = sys.argv[1]
+player = int(sys.argv[1])
 
 class Config():
-    epsilon_train = .1
+    epsilon_train = 1
     gamma = 0.9
-    lr = 0.001
+    lr = 0.1
     num_players_per_team = 2
     num_actions = 9 + num_players_per_team - 1
     state_size = 2*(2*num_players_per_team + 1)
@@ -49,14 +50,16 @@ class QN:
     	num_actions = Config.num_actions
     	out = state
         with tf.variable_scope(scope, reuse=reuse) as _:
-            out = layers.fully_connected(out, 512)
+            out = layers.fully_connected(out, 50)
+            out = layers.fully_connected(out, 50)
+            out = layers.fully_connected(out, 50)
             out = layers.fully_connected(out, num_actions, None) 
         ##############################################################
         ######################## END YOUR CODE #######################
 
         return out
 
-    def add_loss_op(self, q):
+    def add_loss_op(self, q, target_q):
         """
         Sets the loss of a batch, self.loss is a scalar
 
@@ -66,7 +69,7 @@ class QN:
         """
         # you may need this variable
         num_actions = Config.num_actions
-        upd = self.r + Config.gamma * tf.reduce_max(q, axis=1) - tf.reduce_sum(tf.one_hot(self.a, num_actions)*q, axis=1)
+        upd = self.r + Config.gamma * tf.reduce_max(target_q, axis=1) - tf.reduce_sum(tf.one_hot(self.a, num_actions)*q, axis=1)
         self.loss = tf.reduce_mean(upd**2.)
 
         ##############################################################
@@ -76,7 +79,7 @@ class QN:
     def add_optimizer_op(self, scope):
 
         optimizer = tf.train.AdamOptimizer(Config.lr)
-        grads_vars = optimizer.compute_gradients(self.loss)
+        grads_vars = optimizer.compute_gradients(self.loss, var_list=tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=scope))
         grads_vars = [(tf.clip_by_norm(grad, Config.clip_val), var) for grad, var in grads_vars]
         # self.train_op = optimizer.minimize(self.loss)
         self.train_op = optimizer.apply_gradients(grads_vars)
@@ -99,6 +102,8 @@ class QN:
 
         # compute Q values of state
         self.q = self.deep_get_q_values_op(self.s, scope="q", reuse=False)
+
+        self.target_q = self.deep_get_q_values_op(self.s, scope="target_q", reuse=False)
 
         # add square loss
         self.add_loss_op(self.q)
@@ -254,7 +259,7 @@ class QN:
                     score_opp = score[1]
                     loss, _, grad_norm = self.sess.run([self.loss, self.train_op, self.grad_norm], feed_dict={self.s: [state], self.r:  [reward], self.a: [action]})
                     print grad_norm
-                    state = new_state
+                    state = new_state.copy()
 
 
 

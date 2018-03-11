@@ -168,7 +168,7 @@ def train():
         # agents = []
         # agent_obs = []
         # for a in range(Config.num_players_per_team):
-        agent = AgentInterface('SMART', player)
+        agent = AgentInterface('Q-Tabular', player)
         agent.set_home(3*player-1, 3) 
         # agents.append(agent)
         obs = agent.observe_from_server()

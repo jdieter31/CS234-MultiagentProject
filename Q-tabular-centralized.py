@@ -57,7 +57,7 @@ def get_best_actions(state):
     return numpy.unravel_index(np.argmax(action_values), action_values.shape)
 
 
-def get_action(state):
+def get_actions(state):
     """
     Returns action with some epsilon strategy
 

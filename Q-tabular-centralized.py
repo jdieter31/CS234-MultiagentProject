@@ -39,10 +39,12 @@ class Config():
 
 
 Q_table = np.zeros((Config.num_rows, Config.num_cols, Config.num_rows, Config.num_cols, 
-    Config.num_rows, Config.num_cols, Config.num_rows, Config.num_cols, 2*Config.num_players_per_team, Config.num_actions), dtype=np.float32)
+    Config.num_rows, Config.num_cols, Config.num_rows, Config.num_cols, 
+    2*Config.num_players_per_team, 
+    Config.num_actions, Config.num_actions), dtype=np.float32)
 
 
-def get_best_action(state):
+def get_best_actions(state):
     """
     Returns best action according to the network
 
@@ -52,7 +54,7 @@ def get_best_action(state):
         tuple: action, q values
     """
     action_values = Q_table[state[0], state[1], state[2], state[3], state[4], state[5], state[6], state[7], state[8]]
-    return np.argmax(action_values)
+    return numpy.unravel_index(np.argmax(action_values), action_values.shape)
 
 
 def get_action(state):
@@ -62,10 +64,13 @@ def get_action(state):
     Args:
         state: observation from gym
     """
-    best_action = get_best_action(state)
-    random_action = np.random.randint(0, Config.num_actions)
-    prob = np.random.random()
-    return random_action if prob < Config.epsilon_train else best_action
+    best_actions = get_best_actions(state)
+    random_actions = np.random.randint(0, Config.num_actions, Config.num_players_per_team)
+    prob = np.random.random(Config.num_players_per_team)
+    actions = np.zeros(Config.num_players_per_team, dtype=int)
+    for a in range(Config.num_players_per_team):
+        actions[a] = random_actions[a] if prob[a] < Config.epsilon_train else best_actions[a]
+    return actions
 
 # my row, my col, teammate row, teammate col, opp1 row, opp1 col, opp2 row, opp2 col, ball index
 def get_state(agent, obs):
@@ -95,11 +100,11 @@ def get_state(agent, obs):
     return state                    
 
 
-def update_Q(state, action, reward, new_state):
-    Q_old = Q_table[state[0], state[1], state[2], state[3], state[4], state[5], state[6], state[7], state[8], action]
+def update_Q(state, actions, reward, new_state):
+    Q_old = Q_table[state[0], state[1], state[2], state[3], state[4], state[5], state[6], state[7], state[8], actions[0], actions[1]]
     Q_opt_new_state = Q_table[new_state[0], new_state[1], new_state[2], new_state[3], new_state[4], new_state[5], new_state[6], new_state[7], new_state[8]].max()
     Q_new = (1. - Config.lr)*Q_old + Config.lr*(reward + Config.gamma*Q_opt_new_state)
-    Q_table[state[0], state[1], state[2], state[3], state[4], state[5], state[6], state[7], state[8], action] = Q_new
+    Q_table[state[0], state[1], state[2], state[3], state[4], state[5], state[6], state[7], state[8], actions[0], actions[1]] = Q_new
 
 
 def reward(state_prev, state_new, action_prev, score_team_prev, score_opp_prev, score_team_new, score_opp_new):
@@ -168,14 +173,14 @@ def train():
         agents = []
         agent_obs = []
         for a in range(Config.num_players_per_team):
-            agent = AgentInterface('Q-Tabular-PS', a)
+            agent = AgentInterface('Q-Tabular-Central', a)
             agent.set_home(3*a+2, 3) 
             agents.append(agent)
             obs = agent.observe_from_server()
             agent_obs.append(obs)
 
-        state_prev = [None, None]
-        action_prev = [None, None]
+        state_prev = [None for a in range(Config.num_players_per_team)]
+        action_prev = [None for a in range(Config.num_players_per_team)]
         for a in range(Config.num_players_per_team):
             while ("start", 0) not in agent_obs[a]:
                 agent_obs[a] = agents[a].observe_from_server()
@@ -190,8 +195,10 @@ def train():
                         new_cycle = True
                         break
                 if new_cycle:
-                    state_new = get_state(agent, obs)
-                    if action_prev[a] is not None:
+                    state_new = [None for ag in range(Config.num_players_per_team)]
+                    for ag in range(Config.num_players_per_team):
+                        state_new[ag] = get_state(agents[ag], agent_obs[ag])
+                    if a == 0 and action_prev[a] is not None:
                         score = None
                         for o in obs:
                             if o[0] == "score":
@@ -200,18 +207,20 @@ def train():
                                 else:
                                     score = [o[1][1], o[1][0]]
                         score_team_new, score_opp_new = score[0], score[1]
-                        reward_prev = reward(state_prev[a], state_new, action_prev[a], score_team_prev[a], score_opp_prev[a], score_team_new, score_opp_new)
-                        score_team_prev[a] = score_team_new
-                        score_opp_prev[a] = score_opp_new
-                        update_Q(state_prev[a], action_prev[a], reward_prev, state_new)
-                    action_new = get_action(state_new)
+                        reward_prev = 0.
+                        for ag in range(Config.num_players_per_team):                            
+                            reward_prev += reward(state_prev[ag], state_new[ag], action_prev[ag], score_team_prev[ag], score_opp_prev[ag], score_team_new, score_opp_new)
+                            score_team_prev[ag] = score_team_new
+                            score_opp_prev[ag] = score_opp_new
+                        update_Q(state_prev[a], action_prev, reward_prev, state_new[a])
+                    action_new = get_actions(state_new[0])[a]
                     if action_new <= 8:
                         agent.send_action("move", action_new)
                     else:
                         teammate = 1-a
                         agent.send_action("pass", teammate)
-                    state_prev[a] = state_new.copy()
-                    action_prev[a] = action_new                
+                    state_prev[a] = state_new[a].copy()
+                    action_prev[a] = action_new
         
 
     

@@ -6,6 +6,7 @@ from AgentInterface import *
 from collections import defaultdict
 import tensorflow as tf
 import tensorflow.contrib.layers as layers
+import sys
 
 
 player = int(sys.argv[1])
@@ -49,7 +50,7 @@ def get_action(state):
     best_action = get_best_action(state)
     random_action = np.random.randint(0, Config.num_actions)
     prob = np.random.random()
-   	return random_action if prob < Config.epsilon_train else best_action
+    return random_action if prob < Config.epsilon_train else best_action
 
 # my row, my col, teammate row, teammate col, opp1 row, opp1 col, opp2 row, opp2 col, ball index
 def get_state(agent, obs):

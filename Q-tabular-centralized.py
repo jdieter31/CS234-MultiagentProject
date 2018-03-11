@@ -54,7 +54,7 @@ def get_best_actions(state):
         tuple: action, q values
     """
     action_values = Q_table[state[0], state[1], state[2], state[3], state[4], state[5], state[6], state[7], state[8]]
-    return numpy.unravel_index(np.argmax(action_values), action_values.shape)
+    return np.unravel_index(np.argmax(action_values), action_values.shape)
 
 
 def get_actions(state):

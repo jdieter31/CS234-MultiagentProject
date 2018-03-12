@@ -28,9 +28,9 @@ def create_player(player,rows,columns):
 # In[3]:
 
 team=1
-n_players=sys.argv[1]
-rows==sys.argv[2]
-columns==sys.argv[3]
+n_players=int(sys.argv[1])
+rows=int(sys.argv[2])
+columns=int(sys.argv[3])
 
 
 # In[5]:

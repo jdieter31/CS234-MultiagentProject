@@ -13,7 +13,7 @@ import sys
 
 hand_coded_path='../GridSoccerSimulator/Bin/HandCodedClient.exe'
 team=2
-n_players=sys.argv[1]
+n_players=int(sys.argv[1])
 rows=20
 columns=30
 

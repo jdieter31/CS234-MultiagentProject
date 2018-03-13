@@ -277,7 +277,7 @@ class QN:
             # agent_obs = []
             # for a in range(Config.num_players_per_team):
             agent = AgentInterface('SMART', self.player)
-            agent.set_home(int(Config.rows/2) - int(Config.num_players_per_team/2) +    self.player, 2)
+            agent.set_home(int(Config.rows/2) - int(Config.num_players_per_team/2) + 1 + self.player, 2)
             # agents.append(agent)
             obs = agent.observe_from_server()
             # agent_obs.append(obs)
@@ -330,7 +330,7 @@ class QN:
                     if action_new <= 8:
                         agent.send_action("move", action_new)
                     else:
-                        if action_new - 9 < a:
+                        if action_new - 9 < self.player:
                             agent.send_action("pass", action_new-9)
                         else:
                             agent.send_action("pass", action_new-8)

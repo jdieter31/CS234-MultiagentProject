@@ -34,8 +34,8 @@ class Config():
     num_players_per_team = 3
     num_actions = 9 + num_players_per_team - 1
     state_size = 4
-    num_train_episodes = 200
-    num_eval_episodes = 100
+    num_train_episodes = 1000
+    num_eval_episodes = 1
     max_episode_length = 300
 
     episode_len = 50
@@ -46,9 +46,9 @@ class Config():
     target_update_freq = 50
     
     RewardEveryMovment = -2.
-    RewardSuccessfulPass = -1.
-    RewardHold = -1.
-    RewardIllegalMovment = -3.
+    RewardSuccessfulPass = -2.
+    RewardHold = -2.
+    RewardIllegalMovment = -2.
     RewardTeamCatchBall = 10.
     RewardTeamLooseBall = -10.
     RewardSelfCatchBall = 10.

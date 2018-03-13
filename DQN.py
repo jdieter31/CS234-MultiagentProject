@@ -48,17 +48,17 @@ class Config():
     RewardEveryMovment = 0.#-2.
     RewardSuccessfulPass = 0.#-1.
     RewardHold = 0.#-1.
-    RewardIllegalMovment = 0.#-3.
-    RewardTeamCatchBall = 0.#10.
-    RewardTeamLooseBall = 0.#-10.
-    RewardSelfCatchBall = 0.#10.
-    RewardSelfLooseBall = 0.#-10.
-    RewardTeamScoreGoal = 1.#50.
-    RewardSelfScoreGoal = 1.#100.
-    RewardTeamRecvGoal = -1#-100.
-    RewardTeamOwnGoal = -1#-50.
-    RewardSelfOwnGoal = -1#-100.
-    RewardOpponentOwnGoal = 1.#1.
+    RewardIllegalMovment = -3.
+    RewardTeamCatchBall = 10.
+    RewardTeamLooseBall = -10.
+    RewardSelfCatchBall = 10.
+    RewardSelfLooseBall = -10.
+    RewardTeamScoreGoal = 50.
+    RewardSelfScoreGoal = 100.
+    RewardTeamRecvGoal = -100.
+    RewardTeamOwnGoal = 50.
+    RewardSelfOwnGoal = -100.
+    RewardOpponentOwnGoal = 1.
     collaborative_rewards = True
     
 

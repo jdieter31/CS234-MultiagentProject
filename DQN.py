@@ -290,23 +290,23 @@ class QN:
         while ("start", 0) not in obs:
             obs = agent.observe_from_server()
         while True:
-            if num_episodes % (Config.num_train_episodes + Config.num_eval_episodes) == 0 and num_episodes > 0:
-                print "NUMBER OF TRAINING ITERATIONS: %d" % (self.t)
-                print "TRAIN PROPORTION OF EPISODES WON %s" % (float(train_episodes_won) / Config.num_train_episodes)
-                print "EVAL. PROPORTION OF EPISODES WON %s" % (float(eval_episodes_won) / Config.num_eval_episodes)
-                train_episodes_won = 0
-                eval_episodes_won = 0
+            obs = agent.observe_from_server()
+            new_cycle = False
+            for o in obs:
+                if o[0] == "cycle":
+                    new_cycle = True
+                    break
+            if new_cycle:
+                if self.player == 0 and num_episodes % (Config.num_train_episodes + Config.num_eval_episodes) == 0 and num_episodes > 0:
+                    print "NUMBER OF TRAINING ITERATIONS: %d" % (self.t)
+                    print "TRAIN PROPORTION OF EPISODES WON %s" % (float(train_episodes_won) / Config.num_train_episodes)
+                    print "EVAL. PROPORTION OF EPISODES WON %s" % (float(eval_episodes_won) / Config.num_eval_episodes)
+                    train_episodes_won = 0
+                    eval_episodes_won = 0
 
 
-            if num_episodes % (Config.num_train_episodes + Config.num_eval_episodes) < Config.num_train_episodes: #TRAINING
-                # for a in range(Config.num_players_per_team):
-                obs = agent.observe_from_server()
-                new_cycle = False
-                for o in obs:
-                    if o[0] == "cycle":
-                        new_cycle = True
-                        break
-                if new_cycle:
+                if num_episodes % (Config.num_train_episodes + Config.num_eval_episodes) < Config.num_train_episodes: #TRAINING
+                    # for a in range(Config.num_players_per_team):
                     state_new = self.get_state(agent, obs)
                     if action_prev is not None:
                         score = None
@@ -352,15 +352,8 @@ class QN:
                             agent.send_action("pass", action_new-8)
                     state_prev = state_new.copy()
                     action_prev = action_new
-            else: # EVALUATION
-                # for a in range(Config.num_players_per_team):
-                obs = agent.observe_from_server()
-                new_cycle = False
-                for o in obs:
-                    if o[0] == "cycle":
-                        new_cycle = True
-                        break
-                if new_cycle:
+                else: # EVALUATION
+                    # for a in range(Config.num_players_per_team):
                     state_new = self.get_state(agent, obs)
                     if action_prev is not None:
                         score = None

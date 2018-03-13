@@ -77,8 +77,8 @@ def get_state(agent, obs):
         if o[0] == "loc":
             state[0] = o[1][0] - 1
             state[1] = o[1][1] - 1
-        elif o[0] == "player" and agent.uni_number != o[1][1]:
-            if agent.left_team == o[1][0]:
+        elif o[0] == "player":
+            if agent.left_team == o[1][0] and agent.uni_number != o[1][1]:
                 state[team_players_start_index] = o[1][2] - 1
                 state[team_players_start_index+1] = o[1][3] - 1
                 team_players_start_index += 2

@@ -36,7 +36,8 @@ class Config():
     state_size = 4
     num_train_episodes = 200
     num_eval_episodes = 100
-    
+    max_episode_length = 100
+
     episode_len = 50
     # target_update_freq = episode_len
     
@@ -317,6 +318,8 @@ class QN:
                                 else:
                                     score = [o[1][1], o[1][0]]
                         score_team_new, score_opp_new = score[0], score[1]
+                        if (score_team_new, score_opp_new) != (score_team_prev, score_opp_prev):
+                            self.t = 0
                         reward_prev = self.reward(state_prev, state_new, action_prev, score_team_prev, score_opp_prev, score_team_new, score_opp_new)
                         if reward_prev != 0:
                             num_episodes += 1
@@ -341,8 +344,11 @@ class QN:
                             #print('final score:',self.episode_team_goals,self.episode_opp_goals)
                             # self.episode_opp_goals=0
                             # self.episode_team_goals=0
-                        self.t += 1
                     action_new = self.get_action(state_new, True)[0]
+                    if self.t > Config.max_episode_length and agent.uni_number == 0:
+                        agent.send_action("restart", False)
+                        self.t = 0
+                        continue
                     if action_new <= 8:
                         agent.send_action("move", action_new)
                     else:
@@ -364,6 +370,8 @@ class QN:
                                 else:
                                     score = [o[1][1], o[1][0]]
                         score_team_new, score_opp_new = score[0], score[1]
+                        if (score_team_new, score_opp_new) != (score_team_prev, score_opp_prev):
+                            self.t = 0
                         reward_prev = self.reward(state_prev, state_new, action_prev, score_team_prev, score_opp_prev, score_team_new, score_opp_new)
                         if reward_prev != 0:
                             num_episodes += 1
@@ -375,8 +383,11 @@ class QN:
                         
                         score_team_prev = score_team_new
                         score_opp_prev = score_opp_new
-                        
                     action_new = self.get_action(state_new, False)[0]
+                    if self.t > Config.max_episode_length and agent.uni_number == 0:
+                        agent.send_action("restart", False)
+                        self.t = 0
+                        continue
                     if action_new <= 8:
                         agent.send_action("move", action_new)
                     else:
@@ -386,6 +397,7 @@ class QN:
                             agent.send_action("pass", action_new-8)
                     state_prev = state_new.copy()
                     action_prev = action_new
+                self.t += 1
             i += 1
 
      

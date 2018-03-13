@@ -20,22 +20,23 @@ from multiprocessing.dummy import Pool as ThreadPool
 # In[2]:
 
 class Config():
-    rows = 8
-    columns = 6
-    epsilon_train = .15
+    rows = 10
+    columns = 18
+    epsilon_train_start = 1.0
+    epsilon_train_end = 0.1
+    epsilon_decay_steps = 1000000
+    epsilon_soft = 0.05
     gamma = 0.9
     lr = 0.001
-    num_players_per_team = 2
+    num_players_per_team = 3
     num_actions = 9 + num_players_per_team - 1
     state_size = 4
-    num_rows = 6
-    num_cols = 8
     
-    episode_len = 50
-    target_update_freq = episode_len
+    # episode_len = 50
+    # target_update_freq = episode_len
     
-    RewardLooseMatch = -10.
-    RewardWinMatch = 10.
+    # RewardLooseMatch = -10.
+    # RewardWinMatch = 10.
     
     RewardEveryMovment = 0.#-2.
     RewardSuccessfulPass = 0.#-1.
@@ -67,7 +68,7 @@ class QN:
     """
     Abstract Class for implementing a Q Network
     """
-    def __init__(self,player=0,rows=4,columns=8):
+    def __init__(self,player=0,rows=10,columns=18):
         self.player = player
         Config.rows=rows
         Config.columns=columns
@@ -79,19 +80,6 @@ class QN:
         self.s_ = tf.placeholder(tf.float32, (None, Config.rows,Config.columns,state_size))
         self.a = tf.placeholder(tf.int32, (None))
         self.r = tf.placeholder(tf.float32, (None))
-
-    def linear_get_q_values_op(self, state, scope, reuse=False):
-        num_actions = Config.num_actions
-        out = state
-        print out
-        out = layers.flatten(out, scope=scope)
-        print out
-        out = layers.fully_connected(out, num_actions, activation_fn=None, reuse=reuse, scope=scope)
-        print out
-        ##############################################################
-        ######################## END YOUR CODE #######################
-
-        return out
 
 
     def add_update_target_op(self, q_scope, target_q_scope):
@@ -114,25 +102,17 @@ class QN:
             #out = tf.contrib.layers.conv2d(out, num_outputs=64, kernel_size=[4,4], stride=2)
             #out = tf.contrib.layers.conv2d(out, num_outputs=64, kernel_size=[3,3], stride=1)
 
+            #10x18
             out = tf.contrib.layers.conv2d(out, num_outputs=32, kernel_size=[3,3], stride=1)
+            #8 x 16
+
+            #
             out = tf.contrib.layers.conv2d(out, num_outputs=64, kernel_size=[4,4], stride=2)
-            out = tf.contrib.layers.conv2d(out, num_outputs=128, kernel_size=[8,8], stride=2)
+            #3 x 7
+            out = tf.contrib.layers.conv2d(out, num_outputs=128, kernel_size=[3,3], stride=2)
             out = tf.contrib.layers.flatten(out)
-            out = tf.contrib.layers.fully_connected(out, num_outputs=512)
+            out = tf.contrib.layers.fully_connected(out, num_outputs=256)
             out = tf.contrib.layers.fully_connected(out, num_outputs=num_actions, activation_fn=None)
-
-            #out = tf.contrib.layers.conv2d(out, num_outputs=32, kernel_size=[8,8], stride=4)
-            #out = tf.contrib.layers.conv2d(out, num_outputs=64, kernel_size=[4,4], stride=2)
-            #out = tf.contrib.layers.conv2d(out, num_outputs=64, kernel_size=[3,3], stride=1)
-            #out = tf.contrib.layers.flatten(out)
-            #out = tf.contrib.layers.fully_connected(out, num_outputs=512)
-            #out = tf.contrib.layers.fully_connected(out, num_outputs=num_actions, activation_fn=None)
-
-            #out = layers.fully_connected(out, 100)
-            #out = layers.fully_connected(out, 100)
-            #out = layers.fully_connected(out, 100)
-            #out = layers.fully_connected(out, 100)
-            #out = layers.fully_connected(out, num_actions, activation_fn=tf.nn.softmax)
         ##############################################################
         ######################## END YOUR CODE #######################
 
@@ -232,8 +212,17 @@ class QN:
         action_values = self.sess.run(self.q, feed_dict={self.s: [state]})
         return np.argmax(action_values, axis=1), action_values
 
+    def get_epsilon(self, is_training):
+        epsilon = 0.
+        if is_training:
+            epsilon = max(Config.epsilon_train_start + self.t*(Config.epsilon_train_end-Config.epsilon_train_start)/float(Config.epsilon_decay_steps), 
+                Config.epsilon_train_end)
+        else:
+            epsilon = epsilon_soft
+        return epsilon
 
-    def get_action(self, states):
+
+    def get_action(self, states, is_training=True):
         """
         Returns action with some epsilon strategy
 
@@ -243,7 +232,7 @@ class QN:
         best_actions = self.get_best_action(states)[0]
         random_actions = np.random.randint(0, Config.num_actions, len(states))
         probs = np.random.random(len(states))
-        return np.where(probs < Config.epsilon_train, random_actions, best_actions)
+        return np.where(probs < self.get_epsilon(is_training), random_actions, best_actions)
 
     def get_state(self, agent, obs):
         state = np.zeros((Config.rows,Config.columns,Config.state_size))
@@ -261,111 +250,6 @@ class QN:
                 state[o[1][0]-1,o[1][1]-1,3]=1
         return state
 
-    def get_state_(self, agent, obs):
-        state = np.zeros(Config.state_size)
-        team_players_start_index = 2
-        opp_players_start_index = 2*Config.num_players_per_team
-        for o in obs:
-            if o[0] == "loc":
-                state[0] = o[1][0]
-                state[1] = o[1][1]
-            elif o[0] == "player":
-                if agent.left_team == o[1][0] and agent.uni_number != o[1][1]:
-                    state[team_players_start_index] = o[1][2]
-                    state[team_players_start_index+1] = o[1][3]
-                    team_players_start_index += 2
-                elif agent.left_team != o[1][0]:
-                    state[opp_players_start_index] = o[1][2]
-                    state[opp_players_start_index+1] = o[1][3]
-                    opp_players_start_index += 2
-            elif o[0] == "ball":
-                state[-2] = o[1][0]
-                state[-1] = o[1][1]
-        return state
-
-
-
-
-    '''
-    def train(self):
-        """
-        Performs training of Q
-
-        Args:
-            exp_schedule: Exploration instance s.t.
-                exp_schedule.get_action(best_action) returns an action
-            lr_schedule: Schedule for learning rate
-        """
-
-        # initialize replay buffer and variables
-        score_team = 0
-        score_opp = 0
-        i = 0
-        while True:
-            i += 1
-            # agents = []
-            # agent_obs = []
-            # for a in range(Config.num_players_per_team):
-            agent = AgentInterface('SMART', self.player)
-            agent.set_home(3+self.player, 2)
-            # agents.append(agent)
-            obs = agent.observe_from_server()
-            # agent_obs.append(obs)
-
-            state = np.zeros(Config.state_size)
-            # for a in range(Config.num_players_per_team):
-            while ("start", 0) not in obs:
-                obs = agent.observe_from_server()
-                state = self.get_state(agent, obs)
-            new_state = np.zeros(Config.state_size)
-            t = 0
-            while True:
-                # for a in range(Config.num_players_per_team):
-                obs = agent.observe_from_server()
-                new_cycle = False
-                for o in obs:
-                    if o[0] == "cycle":
-                        new_cycle = True
-                        break
-                if new_cycle:
-                    action = self.get_action([state])[0]
-                    if action <= 8:
-                        agent.send_action("move", action)
-                    else:
-                        if action - 9 < self.player:
-                            agent.send_action("pass", action-9)
-                        else:
-                            agent.send_action("pass", action-8)
-                    #obs = agent.observe_from_server()
-                    new_state = self.get_state(agent, obs)
-                    score = None
-                    for o in obs:
-                        if o[0] == "score":
-                            if agent.left_team:
-                                score = [o[1][0], o[1][1]]
-                            else:
-                                score = [o[1][1], o[1][0]]
-                    reward = 0.
-                    if score[0] > score_team:
-                        reward = 1.
-                    elif score[1] > score_opp:
-                        reward = -1.
-                    else:
-                        reward = -0.1
-                    score_team = score[0]
-                    score_opp = score[1]
-                    loss, _ = self.sess.run([self.loss, self.train_op],
-                                            feed_dict={
-                                                self.s: [state],
-                                                self.s_: [new_state],
-                                                self.r:  [reward],
-                                                self.a: [action]
-                                            })
-
-                    if t % Config.target_update_freq == 0:
-                        self.update_target_params()
-                    state = new_state
-    '''
 
     def train(self):
         """
@@ -387,7 +271,7 @@ class QN:
             # agent_obs = []
             # for a in range(Config.num_players_per_team):
             agent = AgentInterface('SMART', self.player)
-            agent.set_home(2+self.player, 2)
+            agent.set_home(int(Config.rows/2) - int(Config.num_players_per_team/2) + self.player, 2)
             # agents.append(agent)
             obs = agent.observe_from_server()
             # agent_obs.append(obs)

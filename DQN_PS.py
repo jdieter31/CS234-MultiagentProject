@@ -20,7 +20,7 @@ from multiprocessing.dummy import Pool as ThreadPool
 #gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.35)
 #sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) 
 
-# In[2]:
+# In[2]:                                                                
 
 class Config():
     rows = 10
@@ -271,7 +271,7 @@ class QN:
         # initialize replay buffer and variables
         score_team_prev = [0 for a in range(Config.num_players_per_team)]
         score_opp_prev = [0 for a in range(Config.num_players_per_team)]
-        num_episodes = [0 for a in range(Config.num_players_per_team)]      
+        num_episodes = 0    
         agents = []
         agent_obs = []
         # agents = []
@@ -323,10 +323,10 @@ class QN:
                                     else:
                                         score = [o[1][1], o[1][0]]
                             score_team_new, score_opp_new = score[0], score[1]
-                            if a == Config.num_players_per_team-1 and (score_team_new, score_opp_new) != (score_team_prev, score_opp_prev):
+                            if a == Config.num_players_per_team-1 and (score_team_new, score_opp_new) != (score_team_prev[a], score_opp_prev[a]):
                                 self.i = 0
                                 num_episodes += 1
-                            if a == Config.num_players_per_team-1 and score_team_new > score_team_prev:
+                            if a == Config.num_players_per_team-1 and score_team_new > score_team_prev[a]:
                                 train_episodes_won += 1
 
                             reward_prev = self.reward(state_prev[a], state_new, action_prev[a], score_team_prev[a], score_opp_prev[a], score_team_new, score_opp_new)
@@ -334,8 +334,6 @@ class QN:
                             # self.episode_opp_goals+=score_opp_new-score_opp_prev
                             # self.episode_team_goals+=score_team_new-score_team_prev
                             
-                            score_team_prev[a] = score_team_new
-                            score_opp_prev[a] = score_opp_new
                             loss, _ = self.sess.run([self.loss, self.train_op],
                                                     feed_dict={
                                                         self.s: [state_prev[a]],
@@ -344,11 +342,13 @@ class QN:
                                                         self.a: [action_prev[a]]
                                                     })
                             # if self.t % Config.target_update_freq == 0:
-                            if (score_team_new, score_opp_new) != (score_team_prev, score_opp_prev) and a == Config.num_players_per_team-1:
+                            if (score_team_new, score_opp_new) != (score_team_prev[a], score_opp_prev[a]) and a == Config.num_players_per_team-1:
                                 self.update_target_params()
                                 #print('final score:',self.episode_team_goals,self.episode_opp_goals)
                                 # self.episode_opp_goals=0
                                 # self.episode_team_goals=0
+                            score_team_prev[a] = score_team_new
+                            score_opp_prev[a] = score_opp_new
                             if a == Config.num_players_per_team-1:
                                 self.t += 1
                         action_new = self.get_action(state_new, True)[0]
@@ -377,10 +377,10 @@ class QN:
                                     else:
                                         score = [o[1][1], o[1][0]]
                             score_team_new, score_opp_new = score[0], score[1]
-                            if a == Config.num_players_per_team-1 and (score_team_new, score_opp_new) != (score_team_prev, score_opp_prev):
+                            if a == Config.num_players_per_team-1 and (score_team_new, score_opp_new) != (score_team_prev[a], score_opp_prev[a]):
                                 self.i = 0
                                 num_episodes += 1
-                            if a == Config.num_players_per_team-1 and score_team_new > score_team_prev:
+                            if a == Config.num_players_per_team-1 and score_team_new > score_team_prev[a]:
                                 eval_episodes_won += 1
                             reward_prev = self.reward(state_prev[a], state_new, action_prev[a], score_team_prev[a], score_opp_prev[a], score_team_new, score_opp_new)
 

@@ -331,8 +331,6 @@ class QN:
                         # self.episode_opp_goals+=score_opp_new-score_opp_prev
                         # self.episode_team_goals+=score_team_new-score_team_prev
                         
-                        score_team_prev = score_team_new
-                        score_opp_prev = score_opp_new
                         loss, _ = self.sess.run([self.loss, self.train_op],
                                                 feed_dict={
                                                     self.s: [state_prev],
@@ -347,6 +345,8 @@ class QN:
                             # self.episode_opp_goals=0
                             # self.episode_team_goals=0
                         self.t += 1
+                        score_team_prev = score_team_new
+                        score_opp_prev = score_opp_new
                     action_new = self.get_action(state_new, True)[0]
                     # if self.i > Config.max_episode_length and agent.uni_number == 0:
                     #     agent.send_action("restart", False)

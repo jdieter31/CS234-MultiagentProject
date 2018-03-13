@@ -287,6 +287,7 @@ class QN:
         action_prev = None
         train_episodes_won = 0
         eval_episodes_won = 0
+        last_print_episode = 0
         # for a in range(Config.num_players_per_team):
         while ("start", 0) not in obs:
             obs = agent.observe_from_server()
@@ -298,8 +299,9 @@ class QN:
                     new_cycle = True
                     break
             if new_cycle:
-                if self.player == 0 and num_episodes % (Config.num_train_episodes + Config.num_eval_episodes) == 0 and num_episodes > 0:
+                if self.player == 0 and num_episodes % (Config.num_train_episodes + Config.num_eval_episodes) == 0 and num_episodes > last_print_episode:
                     print "NUMBER OF TRAINING ITERATIONS: %d" % (self.t)
+                    last_print_episode = num_episodes
                     print "TRAIN PROPORTION OF EPISODES WON %s" % (float(train_episodes_won) / Config.num_train_episodes)
                     print "EVAL. PROPORTION OF EPISODES WON %s" % (float(eval_episodes_won) / Config.num_eval_episodes)
                     train_episodes_won = 0

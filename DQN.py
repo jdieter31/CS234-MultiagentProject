@@ -25,7 +25,7 @@ from multiprocessing.dummy import Pool as ThreadPool
 class Config():
     rows = 10
     columns = 18
-    epsilon_train_start = 1.0
+    epsilon_train_start = 0.5
     epsilon_train_end = 0.1
     epsilon_decay_steps = 100000
     epsilon_soft = 0.05
@@ -341,25 +341,25 @@ class QN:
                                                     self.a: [action_prev]
                                                 })
                         # if self.t % Config.target_update_freq == 0:
-                        if reward_prev != 0:
+                        if (score_team_new, score_opp_new) != (score_team_prev, score_opp_prev):
                             self.update_target_params()
                             #print('final score:',self.episode_team_goals,self.episode_opp_goals)
                             # self.episode_opp_goals=0
                             # self.episode_team_goals=0
                         self.t += 1
                     action_new = self.get_action(state_new, True)[0]
-                    if self.i > Config.max_episode_length and agent.uni_number == 0:
-                        agent.send_action("restart", False)
-                        self.i = 0                        
-                        num_episodes += 1
+                    # if self.i > Config.max_episode_length and agent.uni_number == 0:
+                    #     agent.send_action("restart", False)
+                    #     self.i = 0                        
+                    #     num_episodes += 1
+                    # else:
+                    if action_new <= 8:
+                        agent.send_action("move", action_new)
                     else:
-                        if action_new <= 8:
-                            agent.send_action("move", action_new)
+                        if action_new - 9 < self.player:
+                            agent.send_action("pass", action_new-9)
                         else:
-                            if action_new - 9 < self.player:
-                                agent.send_action("pass", action_new-9)
-                            else:
-                                agent.send_action("pass", action_new-8)
+                            agent.send_action("pass", action_new-8)
                     state_prev = state_new.copy()
                     action_prev = action_new
                 else: # EVALUATION
@@ -388,18 +388,18 @@ class QN:
                         score_team_prev = score_team_new
                         score_opp_prev = score_opp_new
                     action_new = self.get_action(state_new, False)[0]
-                    if self.i > Config.max_episode_length and agent.uni_number == 0:
-                        agent.send_action("restart", False)
-                        self.i = 0
-                        num_episodes += 1
+                    # if self.i > Config.max_episode_length and agent.uni_number == 0:
+                    #     agent.send_action("restart", False)
+                    #     self.i = 0
+                    #     num_episodes += 1
+                    # else:
+                    if action_new <= 8:
+                        agent.send_action("move", action_new)
                     else:
-                        if action_new <= 8:
-                            agent.send_action("move", action_new)
+                        if action_new - 9 < self.player:
+                            agent.send_action("pass", action_new-9)
                         else:
-                            if action_new - 9 < self.player:
-                                agent.send_action("pass", action_new-9)
-                            else:
-                                agent.send_action("pass", action_new-8)
+                            agent.send_action("pass", action_new-8)
                     state_prev = state_new.copy()
                     action_prev = action_new
                 self.i += 1

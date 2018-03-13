@@ -291,9 +291,9 @@ class QN:
             obs = agent.observe_from_server()
         while True:
             if num_episodes % (Config.num_train_episodes + Config.num_eval_episodes) == 0 and num_episodes > 0:
-                print "NUMBER OF TRAINING ITERATIONS: %d" % self.t
-                print "TRAIN PROPORTION OF EPISODES WON %s" % float(train_episodes_won) / Config.num_train_episodes
-                print "EVAL. PROPORTION OF EPISODES WON %s" % float(eval_episodes_won) / Config.num_eval_episodes
+                print "NUMBER OF TRAINING ITERATIONS: %d" % (self.t)
+                print "TRAIN PROPORTION OF EPISODES WON %s" % (float(train_episodes_won) / Config.num_train_episodes)
+                print "EVAL. PROPORTION OF EPISODES WON %s" % (float(eval_episodes_won) / Config.num_eval_episodes)
                 train_episodes_won = 0
                 eval_episodes_won = 0
 

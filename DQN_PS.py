@@ -35,7 +35,7 @@ class Config():
     num_actions = 9 + num_players_per_team - 1
     state_size = 4
     num_train_episodes = 200
-    num_eval_episodes = 100
+    num_eval_episodes = 1
     max_episode_length = 300
 
     episode_len = 50
@@ -45,7 +45,7 @@ class Config():
     # RewardWinMatch = 10.
     target_update_freq = 50
     
-    RewardEveryMovment = -2.
+    RewardEveryMovment = -1.
     RewardSuccessfulPass = -1.
     RewardHold = -1.
     RewardIllegalMovment = -3.
@@ -307,6 +307,8 @@ class QN:
                         last_print_episode = num_episodes
                         print "TRAIN PROPORTION OF EPISODES WON %s" % (float(train_episodes_won) / Config.num_train_episodes)
                         print "EVAL. PROPORTION OF EPISODES WON %s" % (float(eval_episodes_won) / Config.num_eval_episodes)
+                        with open('DQN_PSOutput.txt', 'a') as f:
+                            f.write('%s,%s\n' % (self.t, float(train_episodes_won) / Config.num_train_episodes))
                         train_episodes_won = 0
                         eval_episodes_won = 0
 

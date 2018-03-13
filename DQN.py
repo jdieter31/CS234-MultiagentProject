@@ -27,20 +27,22 @@ class Config():
     columns = 18
     epsilon_train_start = 1.0
     epsilon_train_end = 0.1
-    epsilon_decay_steps = 1000000
+    epsilon_decay_steps = 100000
     epsilon_soft = 0.05
     gamma = 0.9
     lr = 0.001
     num_players_per_team = 3
     num_actions = 9 + num_players_per_team - 1
     state_size = 4
+    num_train_episodes = 200
+    num_eval_episodes = 100
     
     episode_len = 50
     # target_update_freq = episode_len
     
     # RewardLooseMatch = -10.
     # RewardWinMatch = 10.
-    target_update_freq = 500
+    target_update_freq = 50
     
     RewardEveryMovment = 0.#-2.
     RewardSuccessfulPass = 0.#-1.
@@ -67,8 +69,8 @@ class QN:
     player = 0
     q_t=None
     t = 0
-    episode_team_goals=0
-    episode_opp_goals=0
+    # episode_team_goals=0
+    # episode_opp_goals=0
     """
     Abstract Class for implementing a Q Network
     """
@@ -237,7 +239,7 @@ class QN:
         random_actions = np.random.randint(0, Config.num_actions, len(states))
         probs = np.random.random(len(states))
         eps = self.get_epsilon(is_training)
-        print eps
+        # print eps
         return np.where(probs < eps, random_actions, best_actions)
 
     def get_state(self, agent, obs):
@@ -270,24 +272,33 @@ class QN:
         # initialize replay buffer and variables
         score_team_prev = 0
         score_opp_prev = 0
+        num_episodes = 0
+        # agents = []
+        # agent_obs = []
+        # for a in range(Config.num_players_per_team):
+        agent = AgentInterface('SMART', self.player)
+        agent.set_home(int(Config.rows/2) - int(Config.num_players_per_team/2) + 1 + self.player, 2)
+        # agents.append(agent)
+        obs = agent.observe_from_server()
+        # agent_obs.append(obs)
         i = 0
-        while True:
-            i += 1
-            # agents = []
-            # agent_obs = []
-            # for a in range(Config.num_players_per_team):
-            agent = AgentInterface('SMART', self.player)
-            agent.set_home(int(Config.rows/2) - int(Config.num_players_per_team/2) + 1 + self.player, 2)
-            # agents.append(agent)
+        state_prev = None
+        action_prev = None
+        train_episodes_won = 0
+        eval_episodes_won = 0
+        # for a in range(Config.num_players_per_team):
+        while ("start", 0) not in obs:
             obs = agent.observe_from_server()
-            # agent_obs.append(obs)
+        while True:
+            if num_episodes % (Config.num_train_episodes + Config.num_eval_episodes) == 0 and num_episodes > 0:
+                print "NUMBER OF TRAINING ITERATIONS: %d" % self.t
+                print "TRAIN PROPORTION OF EPISODES WON %s" % float(train_episodes_won) / Config.num_train_episodes
+                print "EVAL. PROPORTION OF EPISODES WON %s" % float(eval_episodes_won) / Config.num_eval_episodes
+                train_episodes_won = 0
+                eval_episodes_won = 0
 
-            state_prev = None
-            action_prev = None
-            # for a in range(Config.num_players_per_team):
-            while ("start", 0) not in obs:
-                obs = agent.observe_from_server()
-            while True:
+
+            if num_episodes % (Config.num_train_episodes + Config.num_eval_episodes) < Config.num_train_episodes: #TRAINING
                 # for a in range(Config.num_players_per_team):
                 obs = agent.observe_from_server()
                 new_cycle = False
@@ -307,9 +318,13 @@ class QN:
                                     score = [o[1][1], o[1][0]]
                         score_team_new, score_opp_new = score[0], score[1]
                         reward_prev = self.reward(state_prev, state_new, action_prev, score_team_prev, score_opp_prev, score_team_new, score_opp_new)
+                        if reward_prev != 0:
+                            num_episodes += 1
+                            if reward_prev > 0:
+                                train_episodes_won += 1
                         #--print(reward_prev)
-                        self.episode_opp_goals+=score_opp_new-score_opp_prev
-                        self.episode_team_goals+=score_team_new-score_team_prev
+                        # self.episode_opp_goals+=score_opp_new-score_opp_prev
+                        # self.episode_team_goals+=score_team_new-score_team_prev
                         
                         score_team_prev = score_team_new
                         score_opp_prev = score_opp_new
@@ -320,13 +335,14 @@ class QN:
                                                     self.r:  [reward_prev],
                                                     self.a: [action_prev]
                                                 })
-                        if self.t % Config.target_update_freq == 0:
+                        # if self.t % Config.target_update_freq == 0:
+                        if reward_prev != 0:
                             self.update_target_params()
                             #print('final score:',self.episode_team_goals,self.episode_opp_goals)
-                            self.episode_opp_goals=0
-                            self.episode_team_goals=0
+                            # self.episode_opp_goals=0
+                            # self.episode_team_goals=0
                         self.t += 1
-                    action_new = self.get_action(state_new)[0]
+                    action_new = self.get_action(state_new, True)[0]
                     if action_new <= 8:
                         agent.send_action("move", action_new)
                     else:
@@ -336,6 +352,48 @@ class QN:
                             agent.send_action("pass", action_new-8)
                     state_prev = state_new.copy()
                     action_prev = action_new
+            else: # EVALUATION
+                # for a in range(Config.num_players_per_team):
+                obs = agent.observe_from_server()
+                new_cycle = False
+                for o in obs:
+                    if o[0] == "cycle":
+                        new_cycle = True
+                        break
+                if new_cycle:
+                    state_new = self.get_state(agent, obs)
+                    if action_prev is not None:
+                        score = None
+                        for o in obs:
+                            if o[0] == "score":
+                                if agent.left_team:
+                                    score = [o[1][0], o[1][1]]
+                                else:
+                                    score = [o[1][1], o[1][0]]
+                        score_team_new, score_opp_new = score[0], score[1]
+                        reward_prev = self.reward(state_prev, state_new, action_prev, score_team_prev, score_opp_prev, score_team_new, score_opp_new)
+                        if reward_prev != 0:
+                            num_episodes += 1
+                            if reward_prev > 0:
+                                eval_episodes_won += 1
+                        #--print(reward_prev)
+                        # self.episode_opp_goals+=score_opp_new-score_opp_prev
+                        # self.episode_team_goals+=score_team_new-score_team_prev
+                        
+                        score_team_prev = score_team_new
+                        score_opp_prev = score_opp_new
+                        
+                    action_new = self.get_action(state_new, False)[0]
+                    if action_new <= 8:
+                        agent.send_action("move", action_new)
+                    else:
+                        if action_new - 9 < self.player:
+                            agent.send_action("pass", action_new-9)
+                        else:
+                            agent.send_action("pass", action_new-8)
+                    state_prev = state_new.copy()
+                    action_prev = action_new
+            i += 1
 
      
     def reward(self, state_prev, state_new, action_prev, score_team_prev, score_opp_prev, score_team_new, score_opp_new):

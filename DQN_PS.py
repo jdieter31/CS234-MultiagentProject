@@ -277,7 +277,7 @@ class QN:
         # agents = []
         # agent_obs = []
         for a in range(Config.num_players_per_team):
-            agent = AgentInterface('SMART-PS', a)
+            agent = AgentInterface('SMART-PS', a+1)
             agent.set_home(int(Config.rows/2) - int(Config.num_players_per_team/2) + 1 + a, 2)
             agents.append(agent)
             obs = agent.observe_from_server()

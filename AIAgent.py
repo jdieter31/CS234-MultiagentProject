@@ -41,7 +41,7 @@ executor = ThreadPoolExecutor(max_workers=n_players)
 
 # In[6]:
 
-for i in range((team-1)*n_players,team*n_players):
+for i in range(1,n_players+1):
     g = tf.Graph()
     with g.as_default():
         executor.submit(create_player,i,rows,columns)

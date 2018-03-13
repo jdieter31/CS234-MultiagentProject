@@ -299,7 +299,7 @@ class QN:
                     new_cycle = True
                     break
             if new_cycle:
-                if self.player == 0 and num_episodes % (Config.num_train_episodes + Config.num_eval_episodes) == 0 and num_episodes > last_print_episode:
+                if self.player == 1 and num_episodes % (Config.num_train_episodes + Config.num_eval_episodes) == 0 and num_episodes > last_print_episode:
                     print "NUMBER OF TRAINING ITERATIONS: %d" % (self.t)
                     last_print_episode = num_episodes
                     print "TRAIN PROPORTION OF EPISODES WON %s" % (float(train_episodes_won) / Config.num_train_episodes)

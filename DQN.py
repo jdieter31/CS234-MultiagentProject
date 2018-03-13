@@ -232,7 +232,9 @@ class QN:
         best_actions = self.get_best_action(states)[0]
         random_actions = np.random.randint(0, Config.num_actions, len(states))
         probs = np.random.random(len(states))
-        return np.where(probs < self.get_epsilon(is_training), random_actions, best_actions)
+        eps = self.get_epsilon(is_training)
+        print eps
+        return np.where(probs < eps, random_actions, best_actions)
 
     def get_state(self, agent, obs):
         state = np.zeros((Config.rows,Config.columns,Config.state_size))
@@ -271,7 +273,7 @@ class QN:
             # agent_obs = []
             # for a in range(Config.num_players_per_team):
             agent = AgentInterface('SMART', self.player)
-            agent.set_home(int(Config.rows/2) - int(Config.num_players_per_team/2) + self.player, 2)
+            agent.set_home(int(Config.rows/2) - int(Config.num_players_per_team/2) +    self.player, 2)
             # agents.append(agent)
             obs = agent.observe_from_server()
             # agent_obs.append(obs)

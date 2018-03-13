@@ -399,7 +399,6 @@ class QN:
                     state_prev = state_new.copy()
                     action_prev = action_new
                 self.i += 1
-            i += 1
 
      
     def reward(self, state_prev, state_new, action_prev, score_team_prev, score_opp_prev, score_team_new, score_opp_new):

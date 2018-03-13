@@ -36,7 +36,7 @@ class Config():
     state_size = 4
     num_train_episodes = 200
     num_eval_episodes = 100
-    max_episode_length = 100
+    max_episode_length = 300
 
     episode_len = 50
     # target_update_freq = episode_len
@@ -349,14 +349,14 @@ class QN:
                     if self.i > Config.max_episode_length and agent.uni_number == 0:
                         agent.send_action("restart", False)
                         self.i = 0
-                        continue
-                    if action_new <= 8:
-                        agent.send_action("move", action_new)
                     else:
-                        if action_new - 9 < self.player:
-                            agent.send_action("pass", action_new-9)
+                        if action_new <= 8:
+                            agent.send_action("move", action_new)
                         else:
-                            agent.send_action("pass", action_new-8)
+                            if action_new - 9 < self.player:
+                                agent.send_action("pass", action_new-9)
+                            else:
+                                agent.send_action("pass", action_new-8)
                     state_prev = state_new.copy()
                     action_prev = action_new
                 else: # EVALUATION
@@ -388,14 +388,14 @@ class QN:
                     if self.i > Config.max_episode_length and agent.uni_number == 0:
                         agent.send_action("restart", False)
                         self.i = 0
-                        continue
-                    if action_new <= 8:
-                        agent.send_action("move", action_new)
                     else:
-                        if action_new - 9 < self.player:
-                            agent.send_action("pass", action_new-9)
+                        if action_new <= 8:
+                            agent.send_action("move", action_new)
                         else:
-                            agent.send_action("pass", action_new-8)
+                            if action_new - 9 < self.player:
+                                agent.send_action("pass", action_new-9)
+                            else:
+                                agent.send_action("pass", action_new-8)
                     state_prev = state_new.copy()
                     action_prev = action_new
                 self.i += 1

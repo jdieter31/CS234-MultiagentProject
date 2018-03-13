@@ -34,7 +34,7 @@ class Config():
     num_players_per_team = 3
     num_actions = 9 + num_players_per_team - 1
     state_size = 4
-    num_train_episodes = 1000
+    num_train_episodes = 200
     num_eval_episodes = 1
     max_episode_length = 300
 
@@ -304,8 +304,11 @@ class QN:
                     last_print_episode = num_episodes
                     print "TRAIN PROPORTION OF EPISODES WON %s" % (float(train_episodes_won) / Config.num_train_episodes)
                     print "EVAL. PROPORTION OF EPISODES WON %s" % (float(eval_episodes_won) / Config.num_eval_episodes)
+                    with open('DQNOutput.txt', 'a') as f:
+                        f.write('%s,%s\n' % (self.t, float(train_episodes_won) / Config.num_train_episodes))
                     train_episodes_won = 0
                     eval_episodes_won = 0
+
 
 
                 if num_episodes % (Config.num_train_episodes + Config.num_eval_episodes) < Config.num_train_episodes: #TRAINING

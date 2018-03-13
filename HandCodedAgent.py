@@ -35,7 +35,7 @@ executor = ThreadPoolExecutor(max_workers=n_players)
 
 # In[5]:
 
-for i in range((team-1)*n_players,team*n_players):
+for i in range(1, n_players+1):
     executor.submit(create_player,i,rows,columns)
     time.sleep(1)
 

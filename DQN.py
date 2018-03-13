@@ -27,7 +27,7 @@ class Config():
     columns = 18
     epsilon_train_start = 1.0
     epsilon_train_end = 0.1
-    epsilon_decay_steps = 1000000
+    epsilon_decay_steps = 100000
     epsilon_soft = 0.05
     gamma = 0.9
     lr = 0.001
@@ -40,7 +40,7 @@ class Config():
     
     # RewardLooseMatch = -10.
     # RewardWinMatch = 10.
-    target_update_freq = 500
+    target_update_freq = 50
     
     RewardEveryMovment = 0.#-2.
     RewardSuccessfulPass = 0.#-1.

@@ -1,5 +1,8 @@
 # coding: utf-8
+'''
+IMPORTANT: PLAYERS MUST BE NUMBERED 0, 1, 2, ...
 
+'''
 # In[1]:
 
 import socket
@@ -32,11 +35,12 @@ class Config():
     num_actions = 9 + num_players_per_team - 1
     state_size = 4
     
-    # episode_len = 50
+    episode_len = 50
     # target_update_freq = episode_len
     
     # RewardLooseMatch = -10.
     # RewardWinMatch = 10.
+    target_update_freq = 500
     
     RewardEveryMovment = 0.#-2.
     RewardSuccessfulPass = 0.#-1.
@@ -326,8 +330,10 @@ class QN:
                     if action_new <= 8:
                         agent.send_action("move", action_new)
                     else:
-                        teammate = 2 if self.player == 1 else 1
-                        agent.send_action("pass", teammate)
+                        if action_new - 9 < a:
+                            agent.send_action("pass", action_new-9)
+                        else:
+                            agent.send_action("pass", action_new-8)
                     state_prev = state_new.copy()
                     action_prev = action_new
 

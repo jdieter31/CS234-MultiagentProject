@@ -224,7 +224,7 @@ class QN:
             epsilon = max(Config.epsilon_train_start + self.t*(Config.epsilon_train_end-Config.epsilon_train_start)/float(Config.epsilon_decay_steps), 
                 Config.epsilon_train_end)
         else:
-            epsilon = epsilon_soft
+            epsilon = Config.epsilon_soft
         return epsilon
 
 

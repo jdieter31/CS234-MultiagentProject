@@ -88,7 +88,7 @@ class QN:
 		self.saver = tf.train.Saver()
 
 	def add_placeholders_op(self):
-		state_size = Config.state_size
+		state_size = Config.state_s	ize
 		self.s = tf.placeholder(tf.float32, (None, Config.rows,Config.columns,state_size))
 		self.s_ = tf.placeholder(tf.float32, (None, Config.rows,Config.columns,state_size))
 		self.a = tf.placeholder(tf.int32, (None))
@@ -251,10 +251,10 @@ class QN:
 		random_actions = np.random.randint(0, Config.num_actions*Config.num_communications, len(states))
 		probs = np.random.random(len(states))
 		eps = self.get_epsilon(is_training)
-		joint_actions = np.where(probs < eps, random_actions, best_actions)
-		actions = [np.unravel_index(a, (Config.num_actions, Config.num_communications)) for a in joint_actions]
+		# joint_actions = np.where(probs < eps, random_actions, best_actions)
+		# actions = [np.unravel_index(a, (Config.num_actions, Config.num_communications)) for a in joint_actions]
 		# print eps
-		return actions
+		return np.where(probs < eps, random_actions, best_actions)
 
 	def get_state(self, agent, obs):
 		state = np.zeros((Config.rows,Config.columns,Config.state_size))
@@ -373,8 +373,9 @@ class QN:
 							if a == Config.num_players_per_team-1:
 								self.t += 1
 						joint_action_new = self.get_action(state_new, True)[0]
-						action_new = joint_action_new[0]
-						group_comm_new[a] = joint_action_new[1]
+						joint_action_new_pair = [np.unravel_index(a, (Config.num_actions, Config.num_communications)) for a in joint_action_new]
+						action_new = joint_action_new_pair[0]
+						group_comm_new[a] = joint_action_new_pair[1]
 						# if self.i > Config.max_episode_length and agent.uni_number == 0:
 						#     agent.send_action("restart", False)
 						#     self.i = 0                        
@@ -388,7 +389,7 @@ class QN:
 							else:
 								agent.send_action("pass", action_new-7)
 						state_prev[a] = state_new.copy()
-						action_prev[a] = action_new      
+						action_prev[a] = joint_action_new      
 						if a == Config.num_players_per_team-1:
 							self.group_comm = list(group_comm_new)
 					# else: # EVALUATION

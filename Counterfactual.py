@@ -40,7 +40,7 @@ class Config():
 	lr = 0.001
 	num_players_per_team = 3
 	num_actions = 9 + num_players_per_team - 1
-	state_size = 4
+	state_size = num_players_per_team + 2
 	num_train_episodes = 200
 	num_eval_episodes = 0
 	max_episode_length = 300
@@ -70,7 +70,7 @@ class Config():
 	RewardOpponentOwnGoal = 10.
 	collaborative_rewards = True
 
-	batch_size = 10
+	batch_size = 5
 
 	lambd = 0.8
 
@@ -133,8 +133,8 @@ class QN:
 			# 3 x 7
 			out = tf.contrib.layers.conv2d(out, num_outputs=128, kernel_size=[3, 3], stride=2)
 			out = tf.contrib.layers.flatten(out)
-			a_minus_one_hot = tf.contrib.layers.flatten(tf.one_hot(a_minus, num_actions))
-			agent_one_hot = tf.contrib.layers.flatten(tf.one_hot(agent, Config.num_players_per_team))
+			a_minus_one_hot = tf.reshape(tf.one_hot(a_minus, num_actions), [-1, num_actions*(Config.num_players_per_team-1)])
+			agent_one_hot = tf.reshape(tf.one_hot(agent, Config.num_players_per_team), [-1, Config.num_players_per_team])
 			out = tf.concat([out, a_minus_one_hot, agent_one_hot], axis=1)
 			out = tf.contrib.layers.fully_connected(out, num_outputs=256)
 			out = tf.contrib.layers.fully_connected(out, num_outputs=128)
@@ -163,7 +163,7 @@ class QN:
 			# 3 x 7
 			out = tf.contrib.layers.conv2d(out, num_outputs=128, kernel_size=[3, 3], stride=2)
 			out = tf.contrib.layers.flatten(out)
-			agent_one_hot = tf.contrib.layers.flatten(tf.one_hot(agent, Config.num_players_per_team))
+			agent_one_hot = tf.reshape(tf.one_hot(agent, Config.num_players_per_team), [-1, Config.num_players_per_team])
 			out = tf.concat([out, agent_one_hot], axis=1)
 			out = tf.contrib.layers.fully_connected(out, num_outputs=256)
 			out = tf.contrib.layers.fully_connected(out, num_outputs=128)
@@ -229,12 +229,12 @@ class QN:
 		self.add_update_target_op("q", "target_q")
 
 		# add square loss
-		self.add_loss_op(self.q, self.q_t)
+		self.add_loss_op(self.q, self.TD_targets)
 
 		# add optmizer for the main networks
 		self.train_op_global = self.get_optimizer_op("q")
 
-		self.policy_op = self.add_policy_op()
+		self.policy_op = self.add_policy_op("pi")
 
 	def save(self):
 		"""
@@ -282,7 +282,7 @@ class QN:
 	def sample_action(self, state, a):
 		return self.sess.run([self.sampled_action], feed_dict={
 			self.s: [state],
-			self.a: [a]
+			self.agent: [a]
 		})[0]
 
 	def get_state(self, agent, obs):
@@ -292,18 +292,22 @@ class QN:
 			if o[0] == "loc":
 				a = agent.uni_number + 1
 				state[o[1][0] - 1, o[1][1] - 1, a] = 1
+				print(o)
 			elif o[0] == "player":
 				if agent.left_team == o[1][0] and agent.uni_number != o[1][1]:
 					a = o[1][1] + 1
 					state[o[1][2] - 1, o[1][3] - 1, a] = 1
 				elif agent.left_team != o[1][0]:
 					state[o[1][2] - 1, o[1][3] - 1, 1] = 1
+				print(o)
 			elif o[0] == "ball":
 				state[o[1][0] - 1, o[1][1] - 1, 0] = 1
+				print(o)
+		print(state)
 		return state
 
 	def sample_episode(self, initial_state):
-		i = 1
+		i = 0
 		completed = False
 		won = False
 		score_team_prev = [0 for a in range(Config.num_players_per_team)]
@@ -312,55 +316,59 @@ class QN:
 		states = [initial_state]
 		rewards = []
 		actions_chosen = 0
+		'''
 		# Send initial action
 		for a in range(Config.num_players_per_team):
 			agent = self.agents[a]
 			actions[0][a] = self.sample_action(states[0], a)
-			actions_chosen += 1
-			if actions[i][a] <= 8:
-				agent.send_action("move", actions[i][a])
+			if actions[0][a] <= 8:
+				agent.send_action("move", actions[0][a])
 			else:
-				if actions[i][a] - 9 < a:
-					agent.send_action("pass", actions[i][a] - 8)
+				if actions[0][a] - 9 < a:
+					agent.send_action("pass", actions[0][a] - 8)
 				else:
-					agent.send_action("pass", actions[i][a] - 7)
+					agent.send_action("pass", actions[0][a] - 7)
+		'''
 
 		while not completed:
 			for a in range(Config.num_players_per_team):
 				new_cycle = False
 				agent = self.agents[a]
-				self.agent_obs[a] = agent.observe_from_server()
-				obs = self.agent_obs[a]
+				obs = []
+				if i != 0:
+					self.agent_obs[a] = agent.observe_from_server()
+					obs = self.agent_obs[a]
 				for o in obs:
 					if o[0] == "cycle":
 						new_cycle = True
 						break
-				if new_cycle:
+				if new_cycle or i == 0:
 					# for a in range(Config.num_players_per_team):
 					if len(states) < i + 1:
 						states.append(self.get_state(agent, obs))
-					score = None
-					for o in obs:
-						if o[0] == "score":
-							if agent.left_team:
-								score = [o[1][0], o[1][1]]
-							else:
-								score = [o[1][1], o[1][0]]
-					score_team_new, score_opp_new = score[0], score[1]
-					if a == Config.num_players_per_team - 1 and (score_team_new, score_opp_new) != (
-					score_team_prev[a], score_opp_prev[a]):
-						completed = True
-					if a == Config.num_players_per_team - 1 and score_team_new > score_team_prev[a]:
-						won = True
-					if a == Config.num_players_per_team:
-						rewards.append(self.reward(states[i - 1], states[i], actions[i - 1][a], score_team_prev[a],
-						                           score_opp_prev[a], score_team_new, score_opp_new))
+					if i != 0:
+						score = None
+						for o in obs:
+							if o[0] == "score":
+								if agent.left_team:
+									score = [o[1][0], o[1][1]]
+								else:
+									score = [o[1][1], o[1][0]]
+						score_team_new, score_opp_new = score[0], score[1]
+					if i > 1:
+						if (score_team_new, score_opp_new) != (score_team_prev[a], score_opp_prev[a]):
+							completed = True
+						if a == score_team_new > score_team_prev[a]:
+							won = True
+						if a == 0:
+							rewards.append(self.reward(states[i - 1], states[i], actions[i - 1][a], score_team_prev[a],
+							                           score_opp_prev[a], score_team_new, score_opp_new))
 					# --print(reward_prev)
 					# self.episode_opp_goals+=score_opp_new-score_opp_prev
 					# self.episode_team_goals+=score_team_new-score_team_prev
 
 					if completed:
-						continue
+						break
 
 					if len(actions) < i + 1:
 						actions.append(np.zeros((Config.num_players_per_team), dtype=np.int32))
@@ -378,12 +386,13 @@ class QN:
 							agent.send_action("pass", actions[i][a] - 8)
 						else:
 							agent.send_action("pass", actions[i][a] - 7)
-					score_team_prev[a] = score_team_new
-					score_opp_prev[a] = score_opp_new
+
+					if i != 0:
+						score_team_prev[a] = score_team_new
+						score_opp_prev[a] = score_opp_new
 					if actions_chosen == Config.num_players_per_team:
 						i += 1
 						actions_chosen = 0
-
 		return np.array(states[:-1]), np.array(actions), np.array(rewards), states[-1], won
 
 	def train(self):
@@ -443,7 +452,7 @@ class QN:
 				if episodes % Config.num_train_episodes == 0:
 					print "TRAIN PROPORTION OF EPISODES WON %s" % (float(goals_scored) / Config.num_train_episodes)
 
-					if Config.save_model:e
+					if Config.save_model:
 						self.save()
 					episodes = 0
 					goals_scored = 0
@@ -457,22 +466,22 @@ class QN:
 				if states is None:
 					states = estates
 				else:
-					states = np.append(states, estates)
+					states = np.append(states, estates, axis=0)
 				if actions is None:
 					actions = eactions
 				else:
-					actions = np.append(actions, eactions)
+					actions = np.append(actions, eactions, axis=0)
 
 			i += len(states)
 
 			for a in range(Config.num_players_per_team):
-				a_minus = np.delete(actions[:, a])
+				a_minus = np.delete(actions, a, 1)
 				agent_actions = actions[:, a]
-				loss, _ = self.sess.run([self.loss, self.train_op], feed_dict={
+				loss, _ = self.sess.run([self.loss, self.train_op_global], feed_dict={
 					self.s: states,
 					self.a: agent_actions,
 					self.a_minus: a_minus,
-					self.TD_targets: TDTargets,
+					self.TD_targets: TDTargets[:,a],
 					self.agent: [a for _ in range(states.shape[0])]})
 
 			if i > Config.target_update_freq:
@@ -480,7 +489,7 @@ class QN:
 				i = 0
 
 			for a in range(Config.num_players_per_team):
-				a_minus = np.delete(actions[:, a])
+				a_minus = np.delete(actions, a, 1)
 				agent_actions = actions[:, a]
 				advantages = self.sess.run([self.advantage], feed_dict={
 					self.s: states,
@@ -498,17 +507,18 @@ class QN:
 
 	def getTDTargets(self, states, actions, rewards):
 		TDTargets = np.zeros((states.shape[0], Config.num_players_per_team))
-		for a in Config.num_players_per_team:
-			a_minus = np.delete(actions[:, a])
+		for a in range(Config.num_players_per_team):
+			a_minus = np.delete(actions, a, 1)
 			aTargetQs = self.sess.run([self.q_t], feed_dict={
 				self.s: states,
 				self.a_minus: a_minus,
 				self.agent: [a for _ in range(len(states))]
 			})[0]
-			aTargetQ = aTargetQs[actions[:, a]]
+			one_hot = np.eye(Config.num_actions)[actions[:, a]]
+			aTargetQ = np.sum(aTargetQs*one_hot, axis=1)
 			extendedATargetQ = np.append(aTargetQ, np.zeros(aTargetQ.shape), axis=0)
 			extendedRewards = np.append(rewards, np.zeros(rewards.shape), axis=0)
-			nReturns = np.zeros(states.shape[0], states.shape[0])
+			nReturns = np.zeros((states.shape[0], states.shape[0]))
 			for n in range(1, states.shape[0]):
 				nReturn = np.array(
 					[np.dot(extendedRewards[i:i + n], np.geomspace(1, Config.gamma ** (n - 1), num=n)) for i in

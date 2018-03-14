@@ -442,8 +442,8 @@ class QN:
 					goals_scored += 1
 				if episodes % Config.num_train_episodes == 0:
 					print "TRAIN PROPORTION OF EPISODES WON %s" % (float(goals_scored) / Config.num_train_episodes)
-					
-					if Config.save_model:
+
+					if Config.save_model:e
 						self.save()
 					episodes = 0
 					goals_scored = 0

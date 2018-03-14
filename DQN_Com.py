@@ -43,7 +43,7 @@ class Config():
     lr = 0.001
     num_players_per_team = 3
     num_actions = 9 + num_players_per_team - 1
-    state_size = 4 + num_group_actions
+    state_size = 3 + num_group_actions
     num_train_episodes = 200
     num_eval_episodes = 0
     max_episode_length = 300
@@ -293,9 +293,9 @@ class QN:
         with open(Config.group_strategy_dir+player) as f:
             strategy = f.read()
         if (len(strategy)!=0):
-            return int(strategy) + 1 # one hot vector would have been better
+            return int(strategy) 
         else:
-            return 1
+            return 0 # default strategy
         
     def train(self):
         """

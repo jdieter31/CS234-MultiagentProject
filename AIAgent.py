@@ -16,13 +16,13 @@ import sys
 # In[2]:
 
 def create_player(player,rows,columns):
-    try:
-        model = QN(player=player,rows=rows,columns=columns)
-        print('starting player',player)
-        model.run()
-    except Exception as e:
-        print(e)    
-        traceback.print_exc()
+	try:
+		model = QN(player=player,rows=rows,columns=columns)
+		print('starting player',player)
+		model.run()
+	except Exception as e:
+		print(e)    
+		traceback.print_exc()
 
 
 # In[3]:
@@ -42,10 +42,10 @@ executor = ThreadPoolExecutor(max_workers=n_players)
 # In[6]:
 
 for i in range(1,n_players+1):
-    g = tf.Graph()
-    with g.as_default():
-        executor.submit(create_player,i,rows,columns)
-    time.sleep(1)
+	g = tf.Graph()
+	with g.as_default():
+		executor.submit(create_player,i,rows,columns)
+	time.sleep(1)
 
 
 # In[7]:

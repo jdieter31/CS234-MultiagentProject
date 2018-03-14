@@ -15,6 +15,7 @@ from collections import defaultdict
 import tensorflow as tf
 import tensorflow.contrib.layers as layers
 from multiprocessing.dummy import Pool as ThreadPool 
+import os
 
 
 #gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.35)
@@ -23,6 +24,14 @@ from multiprocessing.dummy import Pool as ThreadPool
 # In[2]:
 
 class Config():
+	load_model = False
+	save_model = True
+
+
+
+	model_name = 'DQN_indep'
+	model_dir = 'models/' + model_name + '/'
+	
     rows = 10
     columns = 18
     epsilon_train_start = 0.5
@@ -35,7 +44,7 @@ class Config():
     num_actions = 9 + num_players_per_team - 1
     state_size = 4
     num_train_episodes = 200
-    num_eval_episodes = 1
+    num_eval_episodes = 0
     max_episode_length = 300
 
     episode_len = 50
@@ -80,6 +89,8 @@ class QN:
         Config.rows=rows
         Config.columns=columns
         self.build()
+        self.save_dir = Config.model_dir + str(self.player) + '/'
+        self.saver = tf.train.Saver()
 
     def add_placeholders_op(self):
         state_size = Config.state_size
@@ -185,7 +196,9 @@ class QN:
         Args:
             model_path: (string) directory
         """
-        pass
+        save_path = self.save_dir + 'model.weights'
+        print 'SAVING TO %s' % save_path
+        self.saver.save(self.sess, save_path)
 
 
     def initialize(self):
@@ -198,13 +211,21 @@ class QN:
         """
         # create tf session
         self.sess = tf.Session()
-
+        ckpt = tf.train.get_checkpoint_state(self.save_dir)
+	    v2_path = ckpt.model_checkpoint_path + ".index" if ckpt else ""
+	    if Config.load_model and ckpt and (tf.gfile.Exists(ckpt.model_checkpoint_path) or tf.gfile.Exists(v2_path)):
+	        print "Reading model parameters from %s" % ckpt.model_checkpoint_path
+	        self.saver.restore(self.sess, ckpt.model_checkpoint_path)
+	    else:
+	        print "Created model with fresh parameters."
+	        init = tf.global_variables_initializer()
+	        self.sess.run(init)
+	        print 'Num params: %d' % sum(v.get_shape().num_elements() for v in tf.trainable_variables())
         # # tensorboard stuff
         # self.add_summary()
 
         # initiliaze all variables
-        init = tf.global_variables_initializer()
-        self.sess.run(init)
+        
 
 
     def get_best_action(self, state):
@@ -277,8 +298,8 @@ class QN:
         # agents = []
         # agent_obs = []
         # for a in range(Config.num_players_per_team):
-        agent = AgentInterface('SMART', self.player)
-        agent.set_home(int(Config.rows/2) - int(Config.num_players_per_team/2) + 1 + self.player, 2)
+        agent = AgentInterface(Config.model_name, self.player)
+        agent.set_home(int(Config.rows/2) - int(Config.num_players_per_team/2) + self.player, 2)
         # agents.append(agent)
         obs = agent.observe_from_server()
         # agent_obs.append(obs)
@@ -286,7 +307,7 @@ class QN:
         state_prev = None
         action_prev = None
         train_episodes_won = 0
-        eval_episodes_won = 0
+        # eval_episodes_won = 0
         last_print_episode = 0
         # for a in range(Config.num_players_per_team):
         while ("start", 0) not in obs:
@@ -299,15 +320,18 @@ class QN:
                     new_cycle = True
                     break
             if new_cycle:
-                if self.player == 1 and num_episodes % (Config.num_train_episodes + Config.num_eval_episodes) == 0 and num_episodes > last_print_episode:
-                    print "NUMBER OF TRAINING ITERATIONS: %d" % (self.t)
-                    last_print_episode = num_episodes
-                    print "TRAIN PROPORTION OF EPISODES WON %s" % (float(train_episodes_won) / Config.num_train_episodes)
-                    print "EVAL. PROPORTION OF EPISODES WON %s" % (float(eval_episodes_won) / Config.num_eval_episodes)
-                    with open('DQNOutput.txt', 'a') as f:
-                        f.write('%s,%s\n' % (self.t, float(train_episodes_won) / Config.num_train_episodes))
-                    train_episodes_won = 0
-                    eval_episodes_won = 0
+                if num_episodes % (Config.num_train_episodes + Config.num_eval_episodes) == 0 and num_episodes > last_print_episode:
+                	if self.player == 1:
+	                    print "NUMBER OF TRAINING ITERATIONS: %d" % (self.t)
+	                    last_print_episode = num_episodes
+	                    print "TRAIN PROPORTION OF EPISODES WON %s" % (float(train_episodes_won) / Config.num_train_episodes)
+	                    # print "EVAL. PROPORTION OF EPISODES WON %s" % (float(eval_episodes_won) / Config.num_eval_episodes)
+	                    with open(Config.model_name + '.out', 'a') as f:
+	                        f.write('%s,%s\n' % (self.t, float(train_episodes_won) / Config.num_train_episodes))
+	                    train_episodes_won = 0
+                    if Config.save_model:
+                        self.save()
+                    # eval_episodes_won = 0
 
 
 
@@ -359,52 +383,52 @@ class QN:
                     if action_new <= 8:
                         agent.send_action("move", action_new)
                     else:
-                        if action_new - 9 < self.player:
-                            agent.send_action("pass", action_new-9)
-                        else:
+                        if action_new - 8 < self.player:
                             agent.send_action("pass", action_new-8)
+                        else:
+                            agent.send_action("pass", action_new-7)
                     state_prev = state_new.copy()
                     action_prev = action_new
-                else: # EVALUATION
-                    # for a in range(Config.num_players_per_team):
-                    state_new = self.get_state(agent, obs)
-                    if action_prev is not None:
-                        score = None
-                        for o in obs:
-                            if o[0] == "score":
-                                if agent.left_team:
-                                    score = [o[1][0], o[1][1]]
-                                else:
-                                    score = [o[1][1], o[1][0]]
-                        score_team_new, score_opp_new = score[0], score[1]
-                        if (score_team_new, score_opp_new) != (score_team_prev, score_opp_prev):
-                            self.i = 0
-                            num_episodes += 1
-                        if score_team_new > score_team_prev:
-                            eval_episodes_won += 1
-                        reward_prev = self.reward(state_prev, state_new, action_prev, score_team_prev, score_opp_prev, score_team_new, score_opp_new)
+                # else: # EVALUATION
+                #     # for a in range(Config.num_players_per_team):
+                #     state_new = self.get_state(agent, obs)
+                #     if action_prev is not None:
+                #         score = None
+                #         for o in obs:
+                #             if o[0] == "score":
+                #                 if agent.left_team:
+                #                     score = [o[1][0], o[1][1]]
+                #                 else:
+                #                     score = [o[1][1], o[1][0]]
+                #         score_team_new, score_opp_new = score[0], score[1]
+                #         if (score_team_new, score_opp_new) != (score_team_prev, score_opp_prev):
+                #             self.i = 0
+                #             num_episodes += 1
+                #         if score_team_new > score_team_prev:
+                #             eval_episodes_won += 1
+                #         reward_prev = self.reward(state_prev, state_new, action_prev, score_team_prev, score_opp_prev, score_team_new, score_opp_new)
 
-                        #--print(reward_prev)
-                        # self.episode_opp_goals+=score_opp_new-score_opp_prev
-                        # self.episode_team_goals+=score_team_new-score_team_prev
+                #         #--print(reward_prev)
+                #         # self.episode_opp_goals+=score_opp_new-score_opp_prev
+                #         # self.episode_team_goals+=score_team_new-score_team_prev
                         
-                        score_team_prev = score_team_new
-                        score_opp_prev = score_opp_new
-                    action_new = self.get_action(state_new, False)[0]
-                    # if self.i > Config.max_episode_length and agent.uni_number == 0:
-                    #     agent.send_action("restart", False)
-                    #     self.i = 0
-                    #     num_episodes += 1
-                    # else:
-                    if action_new <= 8:
-                        agent.send_action("move", action_new)
-                    else:
-                        if action_new - 9 < self.player:
-                            agent.send_action("pass", action_new-9)
-                        else:
-                            agent.send_action("pass", action_new-8)
-                    state_prev = state_new.copy()
-                    action_prev = action_new
+                #         score_team_prev = score_team_new
+                #         score_opp_prev = score_opp_new
+                #     action_new = self.get_action(state_new, False)[0]
+                #     # if self.i > Config.max_episode_length and agent.uni_number == 0:
+                #     #     agent.send_action("restart", False)
+                #     #     self.i = 0
+                #     #     num_episodes += 1
+                #     # else:
+                #     if action_new <= 8:
+                #         agent.send_action("move", action_new)
+                #     else:
+                #         if action_new - 8 < self.player:
+                #             agent.send_action("pass", action_new-8)
+                #         else:
+                #             agent.send_action("pass", action_new-7)
+                #     state_prev = state_new.copy()
+                #     action_prev = action_new
                 self.i += 1
 
      

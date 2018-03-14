@@ -373,7 +373,7 @@ class QN:
 							if a == Config.num_players_per_team-1:
 								self.t += 1
 						joint_action_new = self.get_action(state_new, True)[0]
-						joint_action_new_pair = [np.unravel_index(a, (Config.num_actions, Config.num_communications)) for a in joint_action_new]
+						joint_action_new_pair = np.unravel_index(joint_action_new, (Config.num_actions, Config.num_communications))
 						action_new = joint_action_new_pair[0]
 						group_comm_new[a] = joint_action_new_pair[1]
 						# if self.i > Config.max_episode_length and agent.uni_number == 0:

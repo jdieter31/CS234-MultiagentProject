@@ -33,11 +33,11 @@ class Config():
 	rows = 10
 	columns = 18
 	epsilon_train_start = 0.5
-	epsilon_train_end = 0.1
-	epsilon_decay_steps = 100000
+	epsilon_train_end = 0.02
+	epsilon_decay_steps = 500000
 	epsilon_soft = 0.05
 	gamma = 0.9
-	lr = 0.001
+	lr = 0.0005
 	num_players_per_team = 3
 	num_actions = 9 + num_players_per_team - 1
 	state_size = num_players_per_team + 2
@@ -50,9 +50,7 @@ class Config():
 
 	# RewardLooseMatch = -10.
 	# RewardWinMatch = 10.
-	target_update_freq = 300
-
-	target_update_freq = 50
+	target_update_freq = 150
 	
 	RewardEveryMovment = -2.
 	RewardSuccessfulPass = -2.
@@ -70,7 +68,7 @@ class Config():
 	RewardOpponentOwnGoal = 10.
 	collaborative_rewards = True
 
-	batch_size = 5
+	batch_size = 2
 
 	lambd = 0.8
 
@@ -103,6 +101,7 @@ class QN:
 		self.agent = tf.placeholder(tf.int32, (None))
 		self.a = tf.placeholder(tf.int32, (None))
 		self.r = tf.placeholder(tf.float32, (None))
+		self.e = tf.placeholder(tf.float32, ())
 		self.advantages_in = tf.placeholder(tf.float32, (None))
 
 	def add_update_target_op(self, q_scope, target_q_scope):
@@ -168,6 +167,7 @@ class QN:
 			out = tf.contrib.layers.fully_connected(out, num_outputs=256)
 			out = tf.contrib.layers.fully_connected(out, num_outputs=128)
 			out = tf.contrib.layers.fully_connected(out, num_outputs=num_actions, activation_fn=None)
+
 		##############################################################
 		######################## END YOUR CODE #######################
 
@@ -218,7 +218,11 @@ class QN:
 		                                     reuse=False)
 
 		self.policy = self.deep_get_policy_op(self.s, agent=self.agent, scope="pi", reuse=False)
-		self.sampled_action = tf.squeeze(tf.multinomial(self.policy, 1), axis=1)
+		#Clip to make sure exploration still happens
+		epsilon = self.e
+		max = -tf.log(1/(1 - epsilon) - 1)
+		self.sampled_action = tf.squeeze(tf.multinomial(tf.clip_by_value(self.policy, clip_value_max=max, clip_value_min=-max), 1), axis=1)
+		#self.sampled_action = tf.squeeze(tf.multinomial(self.policy, 1), axis=1)
 		self.logprob = tf.reshape(-tf.nn.sparse_softmax_cross_entropy_with_logits(logits=self.policy, labels=self.a),
 		                          shape=[-1, 1])
 
@@ -247,6 +251,9 @@ class QN:
 		print 'SAVING TO %s' % save_path
 		self.saver.save(self.sess, save_path)
 
+	def get_epsilon(self):
+		return max(Config.epsilon_train_start + self.t*(Config.epsilon_train_end-Config.epsilon_train_start)/float(Config.epsilon_decay_steps),
+			              Config.epsilon_train_end)
 	def initialize(self):
 		"""
 		Initialize variables if necessary
@@ -268,55 +275,41 @@ class QN:
 			self.sess.run(init)
 			print 'Num params: %d' % sum(v.get_shape().num_elements() for v in tf.trainable_variables())
 
-	def get_epsilon(self, is_training):
-		epsilon = 0.
-		if is_training:
-			epsilon = max(
-				Config.epsilon_train_start + self.t * (Config.epsilon_train_end - Config.epsilon_train_start) / float(
-					Config.epsilon_decay_steps),
-				Config.epsilon_train_end)
-		else:
-			epsilon = Config.epsilon_soft
-		return epsilon
 
 	def sample_action(self, state, a):
 		return self.sess.run([self.sampled_action], feed_dict={
 			self.s: [state],
-			self.agent: [a]
+			self.agent: [a],
+			self.e: self.get_epsilon()
 		})[0]
 
 	def get_state(self, agent, obs):
 		state = np.zeros((Config.rows, Config.columns, Config.state_size))
 		for o in obs:
-			# print(o)
 			if o[0] == "loc":
 				a = agent.uni_number + 1
 				state[o[1][0] - 1, o[1][1] - 1, a] = 1
-				print(o)
 			elif o[0] == "player":
 				if agent.left_team == o[1][0] and agent.uni_number != o[1][1]:
 					a = o[1][1] + 1
 					state[o[1][2] - 1, o[1][3] - 1, a] = 1
 				elif agent.left_team != o[1][0]:
 					state[o[1][2] - 1, o[1][3] - 1, 1] = 1
-				print(o)
 			elif o[0] == "ball":
 				state[o[1][0] - 1, o[1][1] - 1, 0] = 1
-				print(o)
-		print(state)
 		return state
 
 	def sample_episode(self, initial_state):
-		i = 0
+		i = 1
 		completed = False
 		won = False
 		score_team_prev = [0 for a in range(Config.num_players_per_team)]
 		score_opp_prev = [0 for a in range(Config.num_players_per_team)]
-		actions = []
+		actions = [np.zeros((Config.num_players_per_team), dtype=np.int32)]
 		states = [initial_state]
 		rewards = []
 		actions_chosen = 0
-		'''
+
 		# Send initial action
 		for a in range(Config.num_players_per_team):
 			agent = self.agents[a]
@@ -328,41 +321,39 @@ class QN:
 					agent.send_action("pass", actions[0][a] - 8)
 				else:
 					agent.send_action("pass", actions[0][a] - 7)
-		'''
+
 
 		while not completed:
 			for a in range(Config.num_players_per_team):
 				new_cycle = False
 				agent = self.agents[a]
-				obs = []
-				if i != 0:
-					self.agent_obs[a] = agent.observe_from_server()
-					obs = self.agent_obs[a]
+				self.agent_obs[a] = agent.observe_from_server()
+				obs = self.agent_obs[a]
 				for o in obs:
 					if o[0] == "cycle":
 						new_cycle = True
 						break
-				if new_cycle or i == 0:
+				if new_cycle:
 					# for a in range(Config.num_players_per_team):
 					if len(states) < i + 1:
 						states.append(self.get_state(agent, obs))
-					if i != 0:
-						score = None
-						for o in obs:
-							if o[0] == "score":
-								if agent.left_team:
-									score = [o[1][0], o[1][1]]
-								else:
-									score = [o[1][1], o[1][0]]
-						score_team_new, score_opp_new = score[0], score[1]
-					if i > 1:
-						if (score_team_new, score_opp_new) != (score_team_prev[a], score_opp_prev[a]):
-							completed = True
-						if a == score_team_new > score_team_prev[a]:
-							won = True
-						if a == 0:
-							rewards.append(self.reward(states[i - 1], states[i], actions[i - 1][a], score_team_prev[a],
-							                           score_opp_prev[a], score_team_new, score_opp_new))
+					score = None
+					for o in obs:
+						if o[0] == "score":
+							if agent.left_team:
+								score = [o[1][0], o[1][1]]
+							else:
+								score = [o[1][1], o[1][0]]
+					score_team_new, score_opp_new = score[0], score[1]
+					if i == 1:
+						score_team_prev[a] = score_team_new
+						score_opp_prev[a] = score_opp_new
+					if (score_team_new, score_opp_new) != (score_team_prev[a], score_opp_prev[a]):
+						completed = True
+					if score_team_new > score_team_prev[a]:
+						won = True
+					if len(rewards) < i:
+						rewards.append(self.reward(states[i - 1], states[i], actions[i - 1][a], score_team_prev[a], score_opp_prev[a], score_team_new, score_opp_new))
 					# --print(reward_prev)
 					# self.episode_opp_goals+=score_opp_new-score_opp_prev
 					# self.episode_team_goals+=score_team_new-score_team_prev
@@ -374,11 +365,7 @@ class QN:
 						actions.append(np.zeros((Config.num_players_per_team), dtype=np.int32))
 					actions[i][a] = self.sample_action(states[i], a)
 					actions_chosen += 1
-					# if self.i > Config.max_episode_length and agent.uni_number == 0:
-					#     agent.send_action("restart", False)
-					#     self.i = 0
-					#     num_episodes += 1
-					# else:
+
 					if actions[i][a] <= 8:
 						agent.send_action("move", actions[i][a])
 					else:
@@ -386,13 +373,15 @@ class QN:
 							agent.send_action("pass", actions[i][a] - 8)
 						else:
 							agent.send_action("pass", actions[i][a] - 7)
-
-					if i != 0:
-						score_team_prev[a] = score_team_new
-						score_opp_prev[a] = score_opp_new
+					score_team_prev[a] = score_team_new
+					score_opp_prev[a] = score_opp_new
 					if actions_chosen == Config.num_players_per_team:
 						i += 1
 						actions_chosen = 0
+
+		#Weird glitch not sure what the deal with this is should be looked into at some point this is a quick fix though
+		if len(actions) > len(states) - 1:
+			actions = actions[:len(states) - 1]
 		return np.array(states[:-1]), np.array(actions), np.array(rewards), states[-1], won
 
 	def train(self):
@@ -438,6 +427,7 @@ class QN:
 					initial_state = self.get_state(agent, obs)
 					inital_obs += 1
 		i = 0
+		self.t = 0
 		episodes = 0
 		goals_scored = 0
 		while True:
@@ -451,7 +441,8 @@ class QN:
 					goals_scored += 1
 				if episodes % Config.num_train_episodes == 0:
 					print "TRAIN PROPORTION OF EPISODES WON %s" % (float(goals_scored) / Config.num_train_episodes)
-
+					with open(Config.model_name + '.out', 'a') as f:
+						f.write('%s,%s\n' % (self.t, float(goals_scored) / Config.num_train_episodes))
 					if Config.save_model:
 						self.save()
 					episodes = 0
@@ -473,6 +464,7 @@ class QN:
 					actions = np.append(actions, eactions, axis=0)
 
 			i += len(states)
+			self.t += len(states)
 
 			for a in range(Config.num_players_per_team):
 				a_minus = np.delete(actions, a, 1)
@@ -482,7 +474,8 @@ class QN:
 					self.a: agent_actions,
 					self.a_minus: a_minus,
 					self.TD_targets: TDTargets[:,a],
-					self.agent: [a for _ in range(states.shape[0])]})
+					self.agent: [a for _ in range(states.shape[0])],
+					self.e: self.get_epsilon()})
 
 			if i > Config.target_update_freq:
 				self.update_target_params()
@@ -495,13 +488,15 @@ class QN:
 					self.s: states,
 					self.a: agent_actions,
 					self.a_minus: a_minus,
-					self.agent: [a for _ in range(states.shape[0])]
+					self.agent: [a for _ in range(states.shape[0])],
+					self.e: self.get_epsilon()
 				})[0]
 				self.sess.run([self.policy_op], feed_dict={
 					self.s: states,
 					self.a: agent_actions,
 					self.agent: [a for _ in range(states.shape[0])],
-					self.advantages_in: advantages
+					self.advantages_in: advantages,
+					self.e: self.get_epsilon()
 				})
 
 
@@ -512,7 +507,8 @@ class QN:
 			aTargetQs = self.sess.run([self.q_t], feed_dict={
 				self.s: states,
 				self.a_minus: a_minus,
-				self.agent: [a for _ in range(len(states))]
+				self.agent: [a for _ in range(len(states))],
+				self.e: self.get_epsilon()
 			})[0]
 			one_hot = np.eye(Config.num_actions)[actions[:, a]]
 			aTargetQ = np.sum(aTargetQs*one_hot, axis=1)
@@ -529,8 +525,8 @@ class QN:
 		return TDTargets
 
 	def reward(self, state_prev, state_new, action_prev, score_team_prev, score_opp_prev, score_team_new, score_opp_new):
-		preAreWeBallOwner = np.sum(state_prev[:, :, 1] * state_prev[:, :, 1]) == 0
-		curAreWeBallOwner = np.sum(state_new[:, :, 1] * state_new[:, :, 1]) == 0
+		preAreWeBallOwner = np.sum(state_prev[:, :, 1] * state_prev[:, :, 0]) == 0
+		curAreWeBallOwner = np.sum(state_new[:, :, 1] * state_new[:, :, 0]) == 0
 
 		# if True:
 		#    return (self.episode_opp_goals+1-self.episode_team_goals)*Config.RewardLooseMatch/(1+Config.episode_len -

@@ -88,7 +88,7 @@ class QN:
 		self.saver = tf.train.Saver()
 
 	def add_placeholders_op(self):
-		state_size = Config.state_s	ize
+		state_size = Config.state_size
 		self.s = tf.placeholder(tf.float32, (None, Config.rows,Config.columns,state_size))
 		self.s_ = tf.placeholder(tf.float32, (None, Config.rows,Config.columns,state_size))
 		self.a = tf.placeholder(tf.int32, (None))

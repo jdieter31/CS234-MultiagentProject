@@ -29,7 +29,9 @@ class Config():
 
     model_name = 'DQN_Com'
     model_dir = 'models/' + model_name + '/'
-    
+    if not os.path.exists(model_dir):
+        os.makedirs(model_dir)
+        
     num_group_actions = 5
     group_strategy_dir = './strategy/'
     
@@ -243,7 +245,7 @@ class QN:
         return best_individual_action,best_group_action, action_values
 
     def save_group_action(self,best_group_action):
-        with open(Config.group_strategy_dir+self.player+'.txt') as f:
+        with open(Config.group_strategy_dir+self.player+'.txt', 'w') as f:
             f.write(best_joint_group_action)
             
             
@@ -451,10 +453,10 @@ class QN:
 
      
     def reward(self, state_prev, state_new, action_prev, score_team_prev, score_opp_prev, score_team_new, score_opp_new):
-        preAmIBallOwner = np.sum(state_prev[:, :, 0]*state_prev[:, :, 3]) != 0
-        preAreWeBallOwner = preAmIBallOwner or np.sum(state_prev[:, :, 1]*state_prev[:, :, 3]) != 0
-        curAmIBallOwner = np.sum(state_new[:, :, 0]*state_new[:, :, 3]) != 0
-        curAreWeBallOwner = curAmIBallOwner or np.sum(state_new[:, :, 1]*state_new[:, :, 3]) != 0
+        preAmIBallOwner = np.sum(state_prev[:, :, 0]*state_prev[:, :, -1]) != 0
+        preAreWeBallOwner = preAmIBallOwner or np.sum(state_prev[:, :, -2]*state_prev[:, :, -1]) == 0
+        curAmIBallOwner = np.sum(state_new[:, :, 0]*state_new[:, :, -1]) != 0
+        curAreWeBallOwner = curAmIBallOwner or np.sum(state_new[:, :, -2]*state_new[:, :, -1]) == 0
         isCollaborative = Config.collaborative_rewards
 
         #if True:

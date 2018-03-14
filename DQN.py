@@ -303,6 +303,7 @@ class QN:
 		train_episodes_won = 0
 		# eval_episodes_won = 0
 		last_print_episode = 0
+		last_save_episode = 0
 		# for a in range(Config.num_players_per_team):
 		while ("start", 0) not in obs:
 			obs = agent.observe_from_server()
@@ -323,8 +324,9 @@ class QN:
 						with open(Config.model_name + '.out', 'a') as f:
 							f.write('%s,%s\n' % (self.t, float(train_episodes_won) / Config.num_train_episodes))
 						train_episodes_won = 0
-					if Config.save_model:
+					if Config.save_model and num_episodes > last_save_episode:
 						self.save()
+						last_save_episode = num_episodes
 					# eval_episodes_won = 0
 
 

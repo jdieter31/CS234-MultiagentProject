@@ -281,7 +281,7 @@ class QN:
                 state[o[1][0]-1,o[1][1]-1,0]=1
             elif o[0] == "player":
                 if agent.left_team == o[1][0] and agent.uni_number != o[1][1]:
-                    state[o[1][2]-1,o[1][3]-1,self.get_group_strategy(o[1][1])]=1
+                    state[o[1][2]-1,o[1][3]-1,1 + self.get_group_strategy(o[1][1])]=1
                     #state[o[1][2]-1,o[1][3]-1,1]=1
                 elif agent.left_team != o[1][0]:
                     state[o[1][2]-1,o[1][3]-1,2]=1

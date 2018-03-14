@@ -23,9 +23,16 @@ from multiprocessing.dummy import Pool as ThreadPool
 # In[2]:                                                                
 
 class Config():
+
+	load_model = False 
+	save_model = True
+
+
+	model_name = 'Counterfactual'
+	model_dir = 'models/' + model_name + '/'
 	rows = 10
 	columns = 18
-	epsilon_train_start = 1.
+	epsilon_train_start = 0.5
 	epsilon_train_end = 0.1
 	epsilon_decay_steps = 100000
 	epsilon_soft = 0.05
@@ -33,9 +40,9 @@ class Config():
 	lr = 0.001
 	num_players_per_team = 3
 	num_actions = 9 + num_players_per_team - 1
-	state_size = 2 + num_players_per_team
+	state_size = 4
 	num_train_episodes = 200
-	num_eval_episodes = 100
+	num_eval_episodes = 0
 	max_episode_length = 300
 
 	episode_len = 50
@@ -45,12 +52,21 @@ class Config():
 	# RewardWinMatch = 10.
 	target_update_freq = 300
 
-	RewardEveryMovment = -1
+	target_update_freq = 50
+	
+	RewardEveryMovment = -2.
+	RewardSuccessfulPass = -2.
+	RewardHold = -2.
+	RewardIllegalMovment = -3.
 	RewardTeamCatchBall = 10.
 	RewardTeamLooseBall = -10.
+	RewardSelfCatchBall = 10.
+	RewardSelfLooseBall = -10.
 	RewardTeamScoreGoal = 50.
+	RewardSelfScoreGoal = 50.
 	RewardTeamRecvGoal = -50.
-
+	RewardTeamOwnGoal = -75.
+	RewardSelfOwnGoal = -100.
 	RewardOpponentOwnGoal = 10.
 	collaborative_rewards = True
 
@@ -72,9 +88,11 @@ class QN:
 	"""
 
 	def __init__(self, rows=10, columns=18):
-		Config.rows = rows
-		Config.columns = columns
+		Config.rows=rows
+		Config.columns=columns
 		self.build()
+		self.save_dir = Config.model_dir
+		self.saver = tf.train.Saver()
 
 	def add_placeholders_op(self):
 		state_size = Config.state_size
@@ -225,7 +243,9 @@ class QN:
 		Args:
 			model_path: (string) directory
 		"""
-		pass
+		save_path = self.save_dir + 'model.weights'
+		print 'SAVING TO %s' % save_path
+		self.saver.save(self.sess, save_path)
 
 	def initialize(self):
 		"""
@@ -237,13 +257,16 @@ class QN:
 		"""
 		# create tf session
 		self.sess = tf.Session()
-
-		# # tensorboard stuff
-		# self.add_summary()
-
-		# initiliaze all variables
-		init = tf.global_variables_initializer()
-		self.sess.run(init)
+		ckpt = tf.train.get_checkpoint_state(self.save_dir)
+		v2_path = ckpt.model_checkpoint_path + ".index" if ckpt else ""
+		if Config.load_model and ckpt and (tf.gfile.Exists(ckpt.model_checkpoint_path) or tf.gfile.Exists(v2_path)):
+			print "Reading model parameters from %s" % ckpt.model_checkpoint_path
+			self.saver.restore(self.sess, ckpt.model_checkpoint_path)
+		else:
+			print "Created model with fresh parameters."
+			init = tf.global_variables_initializer()
+			self.sess.run(init)
+			print 'Num params: %d' % sum(v.get_shape().num_elements() for v in tf.trainable_variables())
 
 	def get_epsilon(self, is_training):
 		epsilon = 0.
@@ -419,6 +442,9 @@ class QN:
 					goals_scored += 1
 				if episodes % Config.num_train_episodes == 0:
 					print "TRAIN PROPORTION OF EPISODES WON %s" % (float(goals_scored) / Config.num_train_episodes)
+					
+					if Config.save_model:
+						self.save()
 					episodes = 0
 					goals_scored = 0
 

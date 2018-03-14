@@ -284,9 +284,9 @@ class QN:
                     state[o[1][2]-1,o[1][3]-1,1 + self.get_group_strategy(o[1][1])]=1
                     #state[o[1][2]-1,o[1][3]-1,1]=1
                 elif agent.left_team != o[1][0]:
-                    state[o[1][2]-1,o[1][3]-1,2]=1
+                    state[o[1][2]-1,o[1][3]-1,-2]=1
             elif o[0] == "ball":
-                state[o[1][0]-1,o[1][1]-1,3]=1
+                state[o[1][0]-1,o[1][1]-1,-1]=1
         return state
 
     def get_group_strategy(self,player):

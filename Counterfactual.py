@@ -33,8 +33,8 @@ class Config():
 	rows = 10
 	columns = 18
 	epsilon_train_start = 0.5
-	epsilon_train_end = 0.02
-	epsilon_decay_steps = 500000
+	epsilon_train_end = 0.05
+	epsilon_decay_steps = 300000
 	epsilon_soft = 0.05
 	gamma = 0.9
 	lr = 0.0005
@@ -46,10 +46,8 @@ class Config():
 	max_episode_length = 300
 
 	episode_len = 50
-	# target_update_freq = episode_len
 
-	# RewardLooseMatch = -10.
-	# RewardWinMatch = 10.
+
 	target_update_freq = 150
 	
 	RewardEveryMovment = -2.
@@ -72,7 +70,9 @@ class Config():
 
 	lambd = 0.8
 
+	maxn = 30
 
+	grad_clip = 4
 # In[3]:
 
 
@@ -95,7 +95,7 @@ class QN:
 	def add_placeholders_op(self):
 		state_size = Config.state_size
 		self.s = tf.placeholder(tf.float32, (None, Config.rows, Config.columns, state_size))
-		self.s_ = tf.placeholder(tf.float32, (None, Config.rows, Config.columns, state_size))
+		self.s_local = tf.placeholder(tf.float32, (None, Config.rows, Config.columns, 4))
 		self.a_minus = tf.placeholder(tf.int32, (None, Config.num_players_per_team - 1))
 		self.TD_targets = tf.placeholder(tf.float32, (None))
 		self.agent = tf.placeholder(tf.int32, (None))
@@ -166,7 +166,8 @@ class QN:
 			out = tf.concat([out, agent_one_hot], axis=1)
 			out = tf.contrib.layers.fully_connected(out, num_outputs=256)
 			out = tf.contrib.layers.fully_connected(out, num_outputs=128)
-			out = tf.contrib.layers.fully_connected(out, num_outputs=num_actions, activation_fn=None)
+			out = tf.contrib.layers.fully_connected(out, num_outputs=num_actions, activation_fn=tf.nn.softmax)
+			out = (1 - self.e)*out + (self.e / Config.num_actions) * tf.ones_like(out)
 
 		##############################################################
 		######################## END YOUR CODE #######################
@@ -178,7 +179,7 @@ class QN:
 		Sets the loss of a batch, self.loss is a scalar
 
 		"""
-		upd = tf.reduce_sum(TD_Targets - tf.reduce_sum(tf.one_hot(self.a, Config.num_actions) * q, axis=1))
+		upd = tf.reduce_mean(TD_Targets - tf.reduce_sum(tf.one_hot(self.a, Config.num_actions) * q, axis=1))
 		self.loss = tf.reduce_mean(upd ** 2.)
 
 	##############################################################
@@ -196,8 +197,12 @@ class QN:
 	def add_policy_op(self, scope):
 		optimizer = tf.train.AdamOptimizer(Config.lr)
 		policy_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=scope)
-		loss = -tf.reduce_sum(self.logprob*self.advantages_in)
-		return optimizer.minimize(loss, var_list=policy_vars)
+		loss = -tf.reduce_mean(self.logprob*self.advantages_in)
+		gvs = optimizer.compute_gradients(loss, policy_vars)
+		gvs[0] = (tf.Print(gvs[0][0], [tf.reduce_max(grad) for grad, _ in gvs]), gvs[0][1])
+		gvs[0] = (tf.Print(gvs[0][0], [tf.reduce_min(grad) for grad, _ in gvs]), gvs[0][1])
+		capped_gvs = [(tf.clip_by_value(grad, -Config.grad_clip, Config.grad_clip), var) for grad, var in gvs]
+		return optimizer.apply_gradients(capped_gvs)
 
 
 	def build(self):
@@ -217,17 +222,15 @@ class QN:
 		self.q_t = self.deep_get_q_values_op(self.s, scope="target_q", a_minus=self.a_minus, agent=self.agent,
 		                                     reuse=False)
 
-		self.policy = self.deep_get_policy_op(self.s, agent=self.agent, scope="pi", reuse=False)
-		#Clip to make sure exploration still happens
-		epsilon = self.e
-		max = -tf.log(1/(1 - epsilon) - 1)
-		self.sampled_action = tf.squeeze(tf.multinomial(tf.clip_by_value(self.policy, clip_value_max=max, clip_value_min=-max), 1), axis=1)
-		#self.sampled_action = tf.squeeze(tf.multinomial(self.policy, 1), axis=1)
-		self.logprob = tf.reshape(-tf.nn.sparse_softmax_cross_entropy_with_logits(logits=self.policy, labels=self.a),
+		self.policy = self.deep_get_policy_op(self.s_local, agent=self.agent, scope="pi", reuse=False)
+		logits = tf.log(self.policy) - tf.log(tf.ones_like(self.policy) - self.policy)
+		self.sampled_action = tf.squeeze(tf.multinomial(logits, 1), axis=1)
+		self.logprob = tf.reshape(-tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=self.a),
 		                          shape=[-1, 1])
 
-		self.advantage = tf.reduce_sum(tf.one_hot(self.a, Config.num_actions) * self.q, axis=1) - tf.reduce_sum(tf.exp(self.logprob) * self.q, axis=1)
 
+
+		self.advantage = tf.reduce_sum(tf.one_hot(self.a, Config.num_actions) * self.q, axis=1) - tf.reduce_sum(self.policy * self.q, axis=1)
 
 		# add update operator for target network
 		self.add_update_target_op("q", "target_q")
@@ -254,6 +257,7 @@ class QN:
 	def get_epsilon(self):
 		return max(Config.epsilon_train_start + self.t*(Config.epsilon_train_end-Config.epsilon_train_start)/float(Config.epsilon_decay_steps),
 			              Config.epsilon_train_end)
+	
 	def initialize(self):
 		"""
 		Initialize variables if necessary
@@ -278,7 +282,7 @@ class QN:
 
 	def sample_action(self, state, a):
 		return self.sess.run([self.sampled_action], feed_dict={
-			self.s: [state],
+			self.s_local: self.get_states_local(a, np.array([state])),
 			self.agent: [a],
 			self.e: self.get_epsilon()
 		})[0]
@@ -297,6 +301,16 @@ class QN:
 					state[o[1][2] - 1, o[1][3] - 1, 1] = 1
 			elif o[0] == "ball":
 				state[o[1][0] - 1, o[1][1] - 1, 0] = 1
+		return state
+
+	def get_states_local(self, a, global_state):
+		state = np.zeros((global_state.shape[0], Config.rows,Config.columns,4))
+		state[:,:,:,0] = global_state[:,:,:,a+2]
+		state[:,:,:,1] = global_state[:,:,:,0]
+		state[:,:,:,2] = global_state[:,:,:,1]
+		for i in range(Config.num_players_per_team):
+			if i != a:
+				state[:,:,:,3] += global_state[:,:,:,i+2]
 		return state
 
 	def sample_episode(self, initial_state):
@@ -466,6 +480,10 @@ class QN:
 			i += len(states)
 			self.t += len(states)
 
+			if i > Config.target_update_freq:
+				self.update_target_params()
+				i = 0
+
 			for a in range(Config.num_players_per_team):
 				a_minus = np.delete(actions, a, 1)
 				agent_actions = actions[:, a]
@@ -477,15 +495,12 @@ class QN:
 					self.agent: [a for _ in range(states.shape[0])],
 					self.e: self.get_epsilon()})
 
-			if i > Config.target_update_freq:
-				self.update_target_params()
-				i = 0
-
 			for a in range(Config.num_players_per_team):
 				a_minus = np.delete(actions, a, 1)
 				agent_actions = actions[:, a]
 				advantages = self.sess.run([self.advantage], feed_dict={
 					self.s: states,
+					self.s_local: self.get_states_local(a, states),
 					self.a: agent_actions,
 					self.a_minus: a_minus,
 					self.agent: [a for _ in range(states.shape[0])],
@@ -493,6 +508,7 @@ class QN:
 				})[0]
 				self.sess.run([self.policy_op], feed_dict={
 					self.s: states,
+					self.s_local: self.get_states_local(a, states),
 					self.a: agent_actions,
 					self.agent: [a for _ in range(states.shape[0])],
 					self.advantages_in: advantages,
@@ -514,14 +530,15 @@ class QN:
 			aTargetQ = np.sum(aTargetQs*one_hot, axis=1)
 			extendedATargetQ = np.append(aTargetQ, np.zeros(aTargetQ.shape), axis=0)
 			extendedRewards = np.append(rewards, np.zeros(rewards.shape), axis=0)
-			nReturns = np.zeros((states.shape[0], states.shape[0]))
-			for n in range(1, states.shape[0]):
+			maxn = min(Config.maxn, states.shape[0])
+			nReturns = np.zeros((states.shape[0], maxn))
+			for n in range(1, maxn):
 				nReturn = np.array(
 					[np.dot(extendedRewards[i:i + n], np.geomspace(1, Config.gamma ** (n - 1), num=n)) for i in
 					 range(states.shape[0])])
 				nReturn = nReturn + (Config.gamma ** n) * extendedATargetQ[n:n + states.shape[0]]
 				nReturns[:, n - 1] = nReturn
-			TDTargets[:, a] = (1 - Config.lambd) * np.dot(nReturns, np.geomspace(1, Config.lambd ** (states.shape[0] - 1), num=states.shape[0]))
+			TDTargets[:, a] = (1 - Config.lambd) * np.dot(nReturns, np.geomspace(1, Config.lambd ** (maxn - 1), num=maxn))
 		return TDTargets
 
 	def reward(self, state_prev, state_new, action_prev, score_team_prev, score_opp_prev, score_team_new, score_opp_new):

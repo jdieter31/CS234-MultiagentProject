@@ -51,8 +51,8 @@ class Config():
 	target_update_freq = 50
 	
 	RewardEveryMovment = -2.
-	RewardSuccessfulPass = -2.
-	RewardHold = -2.
+	RewardSuccessfulPass = -1.
+	RewardHold = -1.
 	RewardIllegalMovment = -3.
 	RewardTeamCatchBall = 10.
 	RewardTeamLooseBall = -10.

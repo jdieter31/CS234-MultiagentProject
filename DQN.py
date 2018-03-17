@@ -33,7 +33,7 @@ class Config():
 	columns = 18
 	epsilon_train_start = 0.5
 	epsilon_train_end = 0.05
-	epsilon_decay_steps = 300000
+	epsilon_decay_steps = 900000
 	epsilon_soft = 0.05
 	gamma = 0.9
 	lr = 0.001
@@ -52,8 +52,8 @@ class Config():
 	target_update_freq = 50
 
 	RewardEveryMovment = -2.
-	RewardSuccessfulPass = -2.
-	RewardHold = -2.
+	RewardSuccessfulPass = -1.
+	RewardHold = -1.
 	RewardIllegalMovment = -2.
 	RewardTeamCatchBall = 10.
 	RewardTeamLooseBall = -10.

@@ -24,7 +24,7 @@ from multiprocessing.dummy import Pool as ThreadPool
 
 class Config():
 
-	load_model = False 
+	load_model = Tru
 	save_model = True
 
 
@@ -47,8 +47,7 @@ class Config():
 
 	episode_len = 50
 
-
-	target_update_freq = 150
+	target_update_freq = 300
 	
 	RewardEveryMovment = -2.
 	RewardSuccessfulPass = -2.
@@ -66,13 +65,15 @@ class Config():
 	RewardOpponentOwnGoal = 10.
 	collaborative_rewards = True
 
-	batch_size = 2
+	max_batch_size = 1000
+
+	batch_size = 4
 
 	lambd = 0.8
 
 	maxn = 30
 
-	grad_clip = 4
+	grad_clip = 1.0
 # In[3]:
 
 
@@ -130,13 +131,13 @@ class QN:
 			#
 			out = tf.contrib.layers.conv2d(out, num_outputs=64, kernel_size=[4, 4], stride=2)
 			# 3 x 7
-			out = tf.contrib.layers.conv2d(out, num_outputs=128, kernel_size=[3, 3], stride=2)
+			#out = tf.contrib.layers.conv2d(out, num_outputs=128, kernel_size=[3, 3], stride=2)
 			out = tf.contrib.layers.flatten(out)
 			a_minus_one_hot = tf.reshape(tf.one_hot(a_minus, num_actions), [-1, num_actions*(Config.num_players_per_team-1)])
 			agent_one_hot = tf.reshape(tf.one_hot(agent, Config.num_players_per_team), [-1, Config.num_players_per_team])
 			out = tf.concat([out, a_minus_one_hot, agent_one_hot], axis=1)
-			out = tf.contrib.layers.fully_connected(out, num_outputs=256)
 			out = tf.contrib.layers.fully_connected(out, num_outputs=128)
+			out = tf.contrib.layers.fully_connected(out, num_outputs=64)
 			out = tf.contrib.layers.fully_connected(out, num_outputs=num_actions, activation_fn=None)
 		##############################################################
 		######################## END YOUR CODE #######################
@@ -160,12 +161,12 @@ class QN:
 			#
 			out = tf.contrib.layers.conv2d(out, num_outputs=64, kernel_size=[4, 4], stride=2)
 			# 3 x 7
-			out = tf.contrib.layers.conv2d(out, num_outputs=128, kernel_size=[3, 3], stride=2)
+			#out = tf.contrib.layers.conv2d(out, num_outputs=128, kernel_size=[3, 3], stride=2)
 			out = tf.contrib.layers.flatten(out)
 			agent_one_hot = tf.reshape(tf.one_hot(agent, Config.num_players_per_team), [-1, Config.num_players_per_team])
 			out = tf.concat([out, agent_one_hot], axis=1)
-			out = tf.contrib.layers.fully_connected(out, num_outputs=256)
 			out = tf.contrib.layers.fully_connected(out, num_outputs=128)
+			out = tf.contrib.layers.fully_connected(out, num_outputs=64)
 			out = tf.contrib.layers.fully_connected(out, num_outputs=num_actions, activation_fn=tf.nn.softmax)
 			out = (1 - self.e)*out + (self.e / Config.num_actions) * tf.ones_like(out)
 
@@ -477,43 +478,52 @@ class QN:
 				else:
 					actions = np.append(actions, eactions, axis=0)
 
-			i += len(states)
 			self.t += len(states)
 
-			if i > Config.target_update_freq:
-				self.update_target_params()
+
+			mini_batch_start = 0
+			while mini_batch_start < states.shape[0]:
+				next_mini_batch = min(states.shape[0], mini_batch_start + Config.max_batch_size)
+				mstates = states[mini_batch_start:next_mini_batch]
+				mactions = actions[mini_batch_start:next_mini_batch]
+				mTDTargets = TDTargets[mini_batch_start:next_mini_batch]
+
+				for a in range(Config.num_players_per_team):
+					a_minus = np.delete(mactions, a, 1)
+					agent_actions = mactions[:, a]
+					loss, _ = self.sess.run([self.loss, self.train_op_global], feed_dict={
+						self.s: mstates,
+						self.a: agent_actions,
+						self.a_minus: a_minus,
+						self.TD_targets: mTDTargets[:,a],
+						self.agent: [a for _ in range(next_mini_batch - mini_batch_start)],
+						self.e: self.get_epsilon()})
+
+				for a in range(Config.num_players_per_team):
+					a_minus = np.delete(mactions, a, 1)
+					agent_actions = mactions[:, a]
+					advantages = self.sess.run([self.advantage], feed_dict={
+						self.s: mstates,
+						self.s_local: self.get_states_local(a, mstates),
+						self.a: agent_actions,
+						self.a_minus: a_minus,
+						self.agent: [a for _ in range(next_mini_batch - mini_batch_start)],
+						self.e: self.get_epsilon()
+					})[0]
+					self.sess.run([self.policy_op], feed_dict={
+						self.s: mstates,
+						self.s_local: self.get_states_local(a, mstates),
+						self.a: agent_actions,
+						self.agent: [a for _ in range(next_mini_batch - mini_batch_start)],
+						self.advantages_in: advantages,
+						self.e: self.get_epsilon()
+					})
+				if i > Config.target_update_freq:
+					self.update_target_params()
 				i = 0
 
-			for a in range(Config.num_players_per_team):
-				a_minus = np.delete(actions, a, 1)
-				agent_actions = actions[:, a]
-				loss, _ = self.sess.run([self.loss, self.train_op_global], feed_dict={
-					self.s: states,
-					self.a: agent_actions,
-					self.a_minus: a_minus,
-					self.TD_targets: TDTargets[:,a],
-					self.agent: [a for _ in range(states.shape[0])],
-					self.e: self.get_epsilon()})
-
-			for a in range(Config.num_players_per_team):
-				a_minus = np.delete(actions, a, 1)
-				agent_actions = actions[:, a]
-				advantages = self.sess.run([self.advantage], feed_dict={
-					self.s: states,
-					self.s_local: self.get_states_local(a, states),
-					self.a: agent_actions,
-					self.a_minus: a_minus,
-					self.agent: [a for _ in range(states.shape[0])],
-					self.e: self.get_epsilon()
-				})[0]
-				self.sess.run([self.policy_op], feed_dict={
-					self.s: states,
-					self.s_local: self.get_states_local(a, states),
-					self.a: agent_actions,
-					self.agent: [a for _ in range(states.shape[0])],
-					self.advantages_in: advantages,
-					self.e: self.get_epsilon()
-				})
+				i += next_mini_batch - mini_batch_start
+				mini_batch_start = next_mini_batch
 
 
 	def getTDTargets(self, states, actions, rewards):
